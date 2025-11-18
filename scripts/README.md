@@ -66,11 +66,81 @@ chmod +x zfs-limit-arc.sh
 
 ---
 
+### 3. `apache_optimizer.sh`
+
+**Purpose:** Automatic optimization of Apache and PHP-FPM based on available CPU and RAM resources.
+
+**Use Case:** VMs or LXC containers running Apache + PHP-FPM (NOT for Proxmox host itself).
+
+**Features:**
+- Auto-detects installed PHP version
+- Installs PHP-FPM if not present
+- Enables required Apache modules (proxy, proxy_fcgi, setenvif)
+- Calculates optimal worker/process values based on system resources
+- Configures Apache MPM Event module dynamically
+- Optimizes PHP-FPM pool settings (dynamic process management)
+- Tunes PHP.ini for web server performance
+- Configures VirtualHosts with ProxyPassMatch for PHP-FPM socket communication
+- Applies security hardening (ServerSignature Off, ServerTokens Prod)
+- Optimizes KeepAlive and connection timeout settings
+
+**Usage:**
+```bash
+# Run inside your Apache VM or LXC container
+chmod +x apache_optimizer.sh
+sudo ./apache_optimizer.sh
+```
+
+**Dynamic Calculations:**
+- **PHP-FPM max_children:** `RAM_MB / 128` (minimum: 4, maximum: 32)
+- **Apache MaxRequestWorkers:** `CPU_CORES × 50`
+- **PM Start/Min/Max:** Calculated proportionally based on max_children
+- Process scaling adapts to detected CPU cores and available RAM
+
+**Optimized Settings Applied:**
+
+**PHP.ini:**
+- memory_limit = 256M
+- max_execution_time = 60s
+- max_input_time = 60s
+- post_max_size = 32M
+- upload_max_filesize = 32M
+- display_errors = Off
+- log_errors = On
+
+**Apache:**
+- KeepAlive: On (100 requests, 5s timeout)
+- Global timeout: 30s
+- MaxConnectionsPerChild: 5000
+- Automatically configures MPM Event module
+
+**PHP-FPM:**
+- Process manager: dynamic
+- request_terminate_timeout = 60s
+- Automatic pm.* values based on RAM
+
+**Important Notes:**
+- ⚠️ **Run this script INSIDE the VM/LXC**, not on the Proxmox host
+- The script modifies Apache and PHP configuration files
+- Services are automatically restarted after configuration
+- Works with any PHP version installed (auto-detected)
+- VirtualHosts are automatically updated with FPM proxy configuration
+
+**What Gets Modified:**
+- `/etc/php/{version}/fpm/pool.d/www.conf`
+- `/etc/php/{version}/fpm/php.ini`
+- `/etc/apache2/mods-available/mpm_event.conf`
+- `/etc/apache2/apache2.conf`
+- All enabled VirtualHosts in `/etc/apache2/sites-enabled/`
+
+---
+
 ## General Requirements
 
 - Root/sudo privileges
-- Proxmox VE environment
+- Proxmox VE environment (for ZFS scripts)
 - ZFS utilities installed (usually pre-installed on Proxmox)
+- Apache + PHP environment (for apache_optimizer.sh)
 
 ## Safety Tips
 
@@ -78,6 +148,7 @@ chmod +x zfs-limit-arc.sh
 2. **Double-check disk paths** - using wrong disks can result in data loss
 3. **Test in a non-production environment** first if possible
 4. Read through each script before executing to understand what it does
+5. **apache_optimizer.sh is for VMs/LXCs only** - do not run on Proxmox host
 
 ---
 
