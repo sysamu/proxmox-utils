@@ -135,6 +135,238 @@ sudo ./apache_optimizer.sh
 
 ---
 
+### 4. `php_installer.sh`
+
+**Purpose:** Install PHP with custom version and modules.
+
+**Two Main Use Cases:**
+
+1. **Installing PHP from scratch** - Just need PHP with specific modules
+2. **Migrating/Updating PHP** - Replicating exact module setup from old server to new one (e.g., CentOS 7 PHP 5.4 → Ubuntu 24 PHP 8.4)
+
+**Features:**
+- Installs PHP with custom version (default: 8.4)
+- Always installs base packages: `php`, `php-dev`, `php-fpm`
+- Optional module installation from file
+- Enables and starts PHP-FPM service automatically
+- Validates module availability before installation
+- Reports unavailable modules with ChatGPT-ready prompt
+
+**Usage:**
+```bash
+chmod +x php_installer.sh
+
+# Install PHP 8.4 (base + dev + fpm only)
+./php_installer.sh
+
+# Install PHP 8.3 (base + dev + fpm only)
+./php_installer.sh 8.3
+
+# Install PHP 8.4 with modules from file
+./php_installer.sh 8.4 php_modules.txt
+```
+
+**Parameters:**
+- `$1` (optional): PHP version to install (default: `8.4`)
+- `$2` (optional): Path to modules file (e.g., `php_modules.txt`)
+
+---
+
+#### Use Case 1: Installing PHP from Scratch
+
+If you just want to install PHP with some modules you need (NOT migrating from another server):
+
+**Step 1: Create your modules list**
+
+Simply create a `php_modules.txt` file with the modules you need:
+
+```bash
+nano php_modules.txt
+```
+
+Example content:
+```
+# Web essentials
+curl
+mbstring
+xml
+zip
+
+# Database
+mysql
+
+# Image processing
+gd
+
+# Caching
+opcache
+```
+
+**Step 2: Run the installer**
+
+```bash
+./php_installer.sh 8.4 php_modules.txt
+```
+
+That's it! No need to follow the migration steps below.
+
+---
+
+#### Use Case 2: Migrating/Updating PHP from Old Server
+
+**⚠️ ONLY follow this if you want to replicate the exact PHP setup from an old server to a new one.**
+
+When migrating from an old server to a new one and you want to replicate the same PHP modules:
+
+**Step 1: Get module list from old server**
+
+SSH into your old server and run:
+```bash
+php -m
+```
+
+Example output:
+```
+[PHP Modules]
+bz2
+calendar
+Core
+ctype
+curl
+date
+ereg
+exif
+fileinfo
+filter
+ftp
+gettext
+gmp
+hash
+iconv
+json
+libxml
+mhash
+openssl
+pcntl
+pcre
+Phar
+readline
+Reflection
+session
+shmop
+SimpleXML
+sockets
+SPL
+standard
+tokenizer
+xml
+zip
+zlib
+
+[Zend Modules]
+```
+
+**Step 2: Ask ChatGPT for compatible modules**
+
+Copy this prompt and replace the placeholders:
+
+```
+Dame la lista de módulos de PHP compatibles para mi nuevo servidor.
+
+Servidor ORIGEN:
+- OS: CentOS 7
+- PHP: 5.4
+- Módulos actuales:
+[paste output of php -m here]
+
+Servidor DESTINO:
+- OS: Ubuntu 24.04
+- PHP: 8.4
+
+Por favor dame solo el listado de nombres de módulos (uno por línea)
+que puedo poner en php_modules.txt para instalar con apt.
+Excluye módulos que ya vienen por defecto en PHP 8.4.
+```
+
+**Step 3: Create php_modules.txt**
+
+ChatGPT will give you a list. Create a file with one module per line:
+
+```bash
+nano php_modules.txt
+```
+
+Example content:
+```
+# Core extensions
+curl
+mbstring
+xml
+zip
+gd
+
+# Database
+mysql
+pgsql
+sqlite3
+
+# Caching
+opcache
+apcu
+
+# Other
+intl
+bcmath
+gmp
+soap
+```
+
+**Step 4: Run the installer**
+
+```bash
+./php_installer.sh 8.4 php_modules.txt
+```
+
+**What the script does:**
+1. Detects your OS information (`/etc/os-release`)
+2. Shows you which packages will be installed
+3. Validates each module exists in apt repositories
+4. Installs available modules
+5. Enables and starts PHP-FPM service
+6. Reports any modules that don't exist
+
+**If modules fail to install:**
+
+The script will show you a ready-to-copy prompt:
+```
+┌─────────────────────────────────────────────────────┐
+│ Estos módulos de PHP NO EXISTEN en mi sistema:
+│
+│ OS: Ubuntu 24.04 LTS (ubuntu 24.04)
+│ PHP: 8.4
+│
+│ Módulos que NO EXISTEN:
+│ - ereg
+│ - mhash
+│
+└─────────────────────────────────────────────────────┘
+
+(Copia y pega en ChatGPT si necesitas ayuda)
+```
+
+Just copy/paste that into ChatGPT and it will tell you if those modules:
+- Have been renamed
+- Are included by default in the new PHP version
+- Simply don't exist anymore
+
+**Important Notes:**
+- The script does NOT automatically search for alternatives
+- If a module doesn't exist, it's skipped (no installation failure)
+- Core modules like `Core`, `standard`, `SPL` don't need to be in the file
+- Module names should NOT include the `php8.4-` prefix, just the name (e.g., `curl`, not `php8.4-curl`)
+
+---
+
 ## General Requirements
 
 - Root/sudo privileges

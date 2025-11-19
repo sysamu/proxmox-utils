@@ -1,0 +1,134 @@
+alias sites='cd /etc/nginx/sites-enabled'
+
+gensitecert() {
+    DOMAIN="$1"
+    UPSTREAM="$2"
+    PORT="${3:-80}"
+
+    # Validaciones básicas
+    if [ -z "$DOMAIN" ] || [ -z "$UPSTREAM" ]; then
+        echo "❌ Error: faltan parámetros."
+        echo ""
+        echo "Uso:"
+        echo "  gensitecert <subdominio> <proxy_pass_host> [proxy_port]"
+        echo ""
+        echo "Ejemplos:"
+        echo "  gensitecert subdomain.example.com upstream.example.com"
+        echo "  gensitecert api.example.com backend.example.com 8080"
+        return 1
+    fi
+
+    TEMPLATE="/etc/nginx/templates/nginx-subdomain"
+
+    # Verificar que la plantilla existe
+    if [ ! -f "$TEMPLATE" ]; then
+        echo "❌ Error: plantilla Nginx no encontrada en $TEMPLATE"
+        echo "Por favor, crea la plantilla antes de continuar."
+        echo "Ejemplo mínimo de plantilla:"
+        echo "server {"
+        echo "    server_name __DOMAIN__;"
+        echo "    location / {"
+        echo "        proxy_pass http://__UPSTREAM__/;"
+        echo "    }"
+        echo "}"
+        return 1
+    fi
+
+    TARGET="/etc/nginx/sites-enabled/$DOMAIN"
+    DOMAIN_SAFE=$(echo "$DOMAIN" | tr '.' '_')
+
+    echo "➡️  Generando configuración Nginx…"
+
+    sed -e "s/__DOMAIN__/$DOMAIN/g" \
+        -e "s/__DOMAIN_SAFE__/$DOMAIN_SAFE/g" \
+        -e "s#__UPSTREAM__#$UPSTREAM:$PORT#g" \
+        "$TEMPLATE" > "$TARGET"
+
+    echo "✔ Configuración creada en: $TARGET"
+
+    echo "➡️  Obteniendo certificado con DNS Cloudflare…"
+    echo 2 | certbot certonly --force-renewal --dns-cloudflare \
+        --dns-cloudflare-credentials /etc/nginx/.secrets/certbot/cloudflare.ini \
+        --dns-cloudflare-propagation-seconds 10 \
+        -d "$DOMAIN"
+
+    if [ $? -ne 0 ]; then
+        echo "❌ Certbot DNS falló. Abortando."
+        return 1
+    fi
+
+    echo "➡️  Aplicando certificado al site con plugin nginx…"
+    echo 1 | certbot --nginx -d "$DOMAIN"
+
+    if [ $? -ne 0 ]; then
+        echo "❌ Error aplicando el certificado. Revisa certbot."
+        return 1
+    fi
+
+    echo "➡️  Recargando Nginx…"
+    nginx -t && systemctl restart nginx
+
+    echo ""
+    echo "🎉 Todo listo!"
+    echo "    Site: /etc/nginx/sites-available/$DOMAIN"
+    echo "    URL:  https://$DOMAIN"
+}
+
+genwsscert() {
+    DOMAIN="$1"
+    UPSTREAM="$2"
+    PORT="${3:-8080}"
+
+    # Validaciones
+    if [ -z "$DOMAIN" ] || [ -z "$UPSTREAM" ]; then
+        echo "❌ Error: faltan parámetros."
+        echo ""
+        echo "Uso:"
+        echo "  genwsscert <subdominio> <upstream_name> [proxy_port]"
+        echo ""
+        echo "Ejemplos:"
+        echo "  genwsscert wss.example.com upstream_ws 8080"
+        return 1
+    fi
+
+    TEMPLATE="/etc/nginx/templates/nginx-wss"
+    TARGET="/etc/nginx/sites-enabled/$DOMAIN"
+    DOMAIN_SAFE=$(echo "$DOMAIN" | tr '.' '_')
+
+    if [ ! -f "$TEMPLATE" ]; then
+        echo "❌ Error: plantilla Nginx no encontrada en $TEMPLATE"
+        return 1
+    fi
+
+    echo "➡️  Generando configuración Nginx WSS…"
+    sed -e "s/__DOMAIN__/$DOMAIN/g" \
+        -e "s/__DOMAIN_SAFE__/$DOMAIN_SAFE/g" \
+        -e "s|__UPSTREAM__:__PORT__|$UPSTREAM:$PORT|g" \
+        "$TEMPLATE" > "$TARGET"
+    echo "✔ Configuración creada en: $TARGET"
+
+    echo "➡️  Solicitando certificado DNS Cloudflare…"
+    echo 1 | certbot certonly --dns-cloudflare \
+        --dns-cloudflare-credentials /etc/nginx/.secrets/certbot/cloudflare.ini \
+        --dns-cloudflare-propagation-seconds 10 \
+        -d "$DOMAIN"
+
+    if [ $? -ne 0 ]; then
+        echo "❌ Certbot DNS falló. Abortando."
+        return 1
+    fi
+
+    echo "➡️  Descomentando líneas de certificado en la config…"
+    sed -i \
+        -e "s|^[[:space:]]*# ssl_certificate /etc/letsencrypt/live/$DOMAIN/fullchain.pem;|ssl_certificate /etc/letsencrypt/live/$DOMAIN/fullchain.pem;|" \
+        -e "s|^[[:space:]]*# ssl_certificate_key /etc/letsencrypt/live/$DOMAIN/privkey.pem;|ssl_certificate_key /etc/letsencrypt/live/$DOMAIN/privkey.pem;|" \
+        "$TARGET"
+
+    echo "➡️  Recargando Nginx…"
+    nginx -t && systemctl restart nginx
+
+    echo ""
+    echo "🎉 Todo listo!"
+    echo "    Site: $TARGET"
+    echo "    URL:  https://$DOMAIN"
+}

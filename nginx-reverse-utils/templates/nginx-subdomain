@@ -1,0 +1,16 @@
+server {
+    server_name __DOMAIN__;
+
+    large_client_header_buffers 4 64k;
+    include snippets/security.conf;
+    include snippets/block_robots_snippet.conf;
+
+    location / {
+        proxy_pass http://__UPSTREAM__/;
+        include snippets/proxy_options.conf;
+        autoindex off;
+    }
+
+    access_log /var/log/nginx/__DOMAIN_SAFE___access.log;
+    error_log /var/log/nginx/__DOMAIN_SAFE___error.log error;
+}

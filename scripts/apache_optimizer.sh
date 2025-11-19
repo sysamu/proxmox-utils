@@ -99,7 +99,7 @@ for enabled in /etc/apache2/sites-enabled/*.conf; do
         sed -i '/<\/VirtualHost>/i\
     # --- PHP-FPM handler ---\
     <FilesMatch "\\.php$">\
-        SetHandler "proxy:unix:/run/php/php'"${PHP_VERSION}"'-fpm.sock|fcgi://localhost/"\
+        SetHandler "proxy:unix:/run/php/php'"${PHP_VERSION}"'-fpm.sock|fcgi://localhost"\
     </FilesMatch>\
 ' "$target"
     fi

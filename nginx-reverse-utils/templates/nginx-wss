@@ -1,0 +1,24 @@
+upstream __DOMAIN_SAFE___ws {
+    ip_hash;
+    server __UPSTREAM__:__PORT__;
+}
+
+server {
+    listen 443 ssl;
+    server_name __DOMAIN__;
+
+    include snippets/security.conf;
+    include snippets/ssl_wss.conf;
+
+    location / {
+        include snippets/wss_options.conf;
+        proxy_pass http://__DOMAIN_SAFE___ws;
+    }
+
+    access_log /var/log/nginx/__DOMAIN_SAFE___wss_access.log;
+    error_log  /var/log/nginx/__DOMAIN_SAFE___wss_error.log error;
+
+    # Certbot autogenerará:
+    # ssl_certificate /etc/letsencrypt/live/__DOMAIN__/fullchain.pem;
+    # ssl_certificate_key /etc/letsencrypt/live/__DOMAIN__/privkey.pem;
+}
