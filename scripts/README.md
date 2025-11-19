@@ -80,7 +80,7 @@ chmod +x zfs-limit-arc.sh
 - Configures Apache MPM Event module dynamically
 - Optimizes PHP-FPM pool settings (dynamic process management)
 - Tunes PHP.ini for web server performance
-- Configures VirtualHosts with ProxyPassMatch for PHP-FPM socket communication
+- Configures VirtualHosts with FilesMatch directive for PHP-FPM socket communication
 - Applies security hardening (ServerSignature Off, ServerTokens Prod)
 - Optimizes KeepAlive and connection timeout settings
 

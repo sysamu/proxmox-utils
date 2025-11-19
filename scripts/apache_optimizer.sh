@@ -92,12 +92,21 @@ for enabled in /etc/apache2/sites-enabled/*.conf; do
     target="/etc/apache2/sites-available/$base"
 
     echo "🧩 Revisando $target"
+
+    # Añadir bloque PHP-FPM dentro del VirtualHost si no existe
+    if ! grep -q "FilesMatch.*\.php" "$target"; then
+        # Buscar la última línea del VirtualHost (</VirtualHost>)
+        sed -i '/<\/VirtualHost>/i\
+    # --- PHP-FPM handler ---\
+    <FilesMatch "\\.php$">\
+        SetHandler "proxy:unix:/run/php/php'"${PHP_VERSION}"'-fpm.sock|fcgi://localhost/"\
+    </FilesMatch>\
+' "$target"
+    fi
+
+    # Añadir ServerSignature y ServerTokens al final si no existen
     grep -q "ServerSignature Off" "$target" || echo "ServerSignature Off" >> "$target"
     grep -q "ServerTokens Prod" "$target" || echo "ServerTokens Prod" >> "$target"
-
-    if ! grep -q "ProxyPassMatch" "$target"; then
-        echo "ProxyPassMatch ^/(.*\\.php(/.*)?)$ unix:/run/php/php${PHP_VERSION}-fpm.sock|fcgi://localhost/var/www/html/" >> "$target"
-    fi
 done
 
 # --- Global Apache tuning ---
