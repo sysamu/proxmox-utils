@@ -72,13 +72,14 @@ if [[ "$UNINSTALL_MODE" == true ]]; then
 
     echo -e "${BLUE}📁 Directorios y archivos a eliminar:${NC}"
     echo "   - /etc/nginx/ (configuración)"
-    echo "   - /var/www/html/ (sitios web)"
     echo "   - /var/log/nginx/ (logs)"
     echo "   - /var/cache/nginx/ (caché)"
     echo
 
+    echo -e "${YELLOW}ℹ  /var/www/html/ NO será eliminado (puede contener otros sitios)${NC}"
+    echo
     echo -e "${RED}⚠️  ADVERTENCIA: Esta acción eliminará Nginx y todas sus configuraciones${NC}"
-    echo -e "${RED}⚠️  Se perderán todos los sitios, logs y configuraciones personalizadas${NC}"
+    echo -e "${RED}⚠️  Se perderán logs y configuraciones personalizadas${NC}"
     read -p "¿Desea continuar con la desinstalación? (s/N) " yn
     if [[ "$yn" != "s" && "$yn" != "S" ]]; then
         echo -e "${YELLOW}⏹  Desinstalación cancelada${NC}"
@@ -100,14 +101,13 @@ if [[ "$UNINSTALL_MODE" == true ]]; then
     rm -rf /etc/nginx
     echo -e "   ${GREEN}✓${NC} /etc/nginx eliminado"
 
-    rm -rf /var/www/html
-    echo -e "   ${GREEN}✓${NC} /var/www/html eliminado"
-
     rm -rf /var/log/nginx
     echo -e "   ${GREEN}✓${NC} /var/log/nginx eliminado"
 
     rm -rf /var/cache/nginx
     echo -e "   ${GREEN}✓${NC} /var/cache/nginx eliminado"
+
+    echo -e "   ${YELLOW}⊘${NC} /var/www/html preservado (contiene sitios web)"
 
     echo
     echo -e "${BLUE}🧹 Limpiando dependencias no utilizadas...${NC}"

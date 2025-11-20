@@ -502,7 +502,8 @@ sudo ./nginx_installer.sh --uninstall
 **Parameters:**
 - `--skip-confirm` - Skip installation confirmation prompt
 - `--site DOMAIN` - Automatically create and configure a site for the specified domain
-- `--uninstall` - Uninstall Nginx, remove all configurations, sites, logs, and cache (requires confirmation)
+- `--uninstall` - Uninstall Nginx, remove all configurations, logs, and cache (requires confirmation)
+  - **Note:** `/var/www/html/` is preserved and NOT deleted during uninstall
 
 **What the script does:**
 
