@@ -1,6 +1,10 @@
 #!/bin/bash
 # Nginx installer for static content serving (HTTP only, port 80)
-# Usage: ./nginx_installer.sh [--skip-confirm]
+# Usage: ./nginx_installer.sh [--skip-confirm] [--site DOMAIN]
+# Examples:
+#   ./nginx_installer.sh                              # Install only
+#   ./nginx_installer.sh --site images.example.com   # Install + create site
+#   ./nginx_installer.sh --skip-confirm --site images.example.com
 # Features:
 #   - Installs Nginx optimized for static content (images, files, etc.)
 #   - Auto-optimizes based on system specs (CPU, RAM)
@@ -8,6 +12,7 @@
 #   - Enables gzip compression
 #   - Sets up monitoring endpoint (LAN only)
 #   - Creates default site template for static serving
+#   - Optionally creates a configured site from template
 
 set -euo pipefail
 
@@ -21,9 +26,25 @@ NC='\033[0m' # No Color
 
 # Parse arguments
 SKIP_CONFIRM=false
-if [[ "${1:-}" == "--skip-confirm" ]]; then
-    SKIP_CONFIRM=true
-fi
+SITE_DOMAIN=""
+
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --skip-confirm)
+            SKIP_CONFIRM=true
+            shift
+            ;;
+        --site)
+            SITE_DOMAIN="$2"
+            shift 2
+            ;;
+        *)
+            echo -e "${RED}Unknown argument: $1${NC}"
+            echo "Usage: $0 [--skip-confirm] [--site DOMAIN]"
+            exit 1
+            ;;
+    esac
+done
 
 echo -e "${BLUE}╔════════════════════════════════════════════════════╗${NC}"
 echo -e "${BLUE}║   🚀 Nginx Installer & Optimizer                  ║${NC}"
@@ -462,3 +483,94 @@ echo -e "   3. Crea el directorio: ${YELLOW}mkdir -p /var/www/mysite${NC}"
 echo -e "   4. Habilita el sitio: ${YELLOW}ln -s /etc/nginx/sites-available/mysite.conf /etc/nginx/sites-enabled/${NC}"
 echo -e "   5. Recarga Nginx: ${YELLOW}nginx -t && systemctl reload nginx${NC}"
 echo
+echo -e "   ${CYAN}O usa el flag --site:${NC} ${YELLOW}$0 --site mysite.com${NC}"
+echo
+
+# Create custom site if domain was specified
+if [[ -n "$SITE_DOMAIN" ]]; then
+    echo
+    echo -e "${BLUE}╔════════════════════════════════════════════════════╗${NC}"
+    echo -e "${BLUE}║   🌐 Creando sitio personalizado                  ║${NC}"
+    echo -e "${BLUE}╚════════════════════════════════════════════════════╝${NC}"
+    echo
+
+    # Generate safe domain name (replace dots with underscores)
+    DOMAIN_SAFE=$(echo "$SITE_DOMAIN" | tr '.' '_')
+
+    echo -e "${CYAN}📝 Configurando sitio: ${YELLOW}${SITE_DOMAIN}${NC}"
+    echo
+
+    # Create site configuration from template
+    SITE_CONF="/etc/nginx/sites-available/${SITE_DOMAIN}.conf"
+    sed -e "s/__DOMAIN__/${SITE_DOMAIN}/g" \
+        -e "s/__DOMAIN_SAFE__/${DOMAIN_SAFE}/g" \
+        /etc/nginx/templates/nginx-static > "$SITE_CONF"
+
+    echo -e "   ${GREEN}✓${NC} Configuración creada: ${SITE_CONF}"
+
+    # Create web directory
+    WEB_DIR="/var/www/${SITE_DOMAIN}"
+    mkdir -p "$WEB_DIR"
+    chown www-data:www-data "$WEB_DIR"
+
+    echo -e "   ${GREEN}✓${NC} Directorio web creado: ${WEB_DIR}"
+
+    # Create a simple index.html
+    cat > "${WEB_DIR}/index.html" <<EOF
+<!DOCTYPE html>
+<html>
+<head>
+    <title>${SITE_DOMAIN}</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .container {
+            background: white;
+            padding: 2rem;
+            border-radius: 10px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+            text-align: center;
+        }
+        h1 { color: #333; }
+        p { color: #666; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>${SITE_DOMAIN}</h1>
+        <p>Static content server ready!</p>
+        <p>Upload your files to: <code>${WEB_DIR}</code></p>
+    </div>
+</body>
+</html>
+EOF
+
+    echo -e "   ${GREEN}✓${NC} Página de ejemplo creada"
+
+    # Enable site
+    ln -sf "$SITE_CONF" "/etc/nginx/sites-enabled/${SITE_DOMAIN}.conf"
+    echo -e "   ${GREEN}✓${NC} Sitio habilitado"
+
+    # Test and reload Nginx
+    if nginx -t 2>&1 | grep -q "successful"; then
+        systemctl reload nginx
+        echo -e "   ${GREEN}✓${NC} Nginx recargado"
+        echo
+        echo -e "${GREEN}🎉 Sitio creado exitosamente!${NC}"
+        echo -e "   ${YELLOW}http://${SITE_DOMAIN}${NC}"
+        echo -e "   Archivos en: ${YELLOW}${WEB_DIR}${NC}"
+    else
+        echo -e "   ${RED}✗${NC} Error en la configuración de Nginx"
+        nginx -t
+    fi
+    echo
+fi
+
+echo -e "${GREEN}✨ Proceso finalizado${NC}"

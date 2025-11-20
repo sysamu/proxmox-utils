@@ -395,7 +395,17 @@ sudo ./nginx_installer.sh
 
 # Silent installation (no confirmation)
 sudo ./nginx_installer.sh --skip-confirm
+
+# Install and create a site automatically
+sudo ./nginx_installer.sh --site images.example.com
+
+# Combined: silent install + create site
+sudo ./nginx_installer.sh --skip-confirm --site images.example.com
 ```
+
+**Parameters:**
+- `--skip-confirm` - Skip installation confirmation prompt
+- `--site DOMAIN` - Automatically create and configure a site for the specified domain
 
 **What the script does:**
 
@@ -463,6 +473,23 @@ sudo ./nginx_installer.sh --skip-confirm
 - **Web root:** `/var/www/html/`
 
 **Creating a new static site:**
+
+**Option 1: Automatic (recommended)**
+
+Use the `--site` flag during installation or run the script again:
+```bash
+sudo ./nginx_installer.sh --site images.example.com
+```
+
+This automatically:
+- Creates the site configuration from template
+- Replaces `__DOMAIN__` and `__DOMAIN_SAFE__` placeholders
+- Creates web directory at `/var/www/images.example.com`
+- Creates a sample index.html
+- Enables the site
+- Tests and reloads Nginx
+
+**Option 2: Manual**
 
 1. Copy the template:
 ```bash
