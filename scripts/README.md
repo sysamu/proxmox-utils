@@ -197,6 +197,8 @@ sudo ./php_installer.sh                             # PHP 8.4 base + fpm
 sudo ./php_installer.sh 8.3                         # PHP 8.3 base + fpm
 sudo ./php_installer.sh --modules php_modules.txt   # PHP 8.4 + custom modules
 sudo ./php_installer.sh 8.3 --modules php_modules.txt
+sudo ./php_installer.sh --uninstall                 # Uninstall PHP 8.4
+sudo ./php_installer.sh 8.3 --uninstall             # Uninstall PHP 8.3
 ```
 
 **Purpose:** Install PHP with custom version and modules.
@@ -229,11 +231,18 @@ chmod +x php_installer.sh
 
 # Install PHP 8.3 with modules from file
 ./php_installer.sh 8.3 --modules php_modules.txt
+
+# Uninstall PHP 8.4 (uses php_modules.txt if exists in current directory)
+./php_installer.sh --uninstall
+
+# Uninstall PHP 8.3
+./php_installer.sh 8.3 --uninstall
 ```
 
 **Parameters:**
-- `VERSION` (optional): PHP version to install (default: `8.4`)
+- `VERSION` (optional): PHP version to install/uninstall (default: `8.4`)
 - `--modules FILE` (optional): Path to modules file (e.g., `php_modules.txt`)
+- `--uninstall` (optional): Uninstall PHP and all installed modules (requires confirmation)
 
 ---
 
@@ -454,6 +463,9 @@ sudo ./nginx_installer.sh --site images.example.com
 wget -q https://raw.githubusercontent.com/sysamu/proxmox-utils/main/scripts/nginx_installer.sh && \
 chmod +x nginx_installer.sh && \
 sudo ./nginx_installer.sh --skip-confirm --site images.example.com
+
+# Uninstall Nginx completely
+sudo ./nginx_installer.sh --uninstall
 ```
 
 **Purpose:** Install and auto-configure Nginx optimized for serving static content (HTTP only, port 80).
@@ -482,11 +494,15 @@ sudo ./nginx_installer.sh --site images.example.com
 
 # Combined: silent install + create site
 sudo ./nginx_installer.sh --skip-confirm --site images.example.com
+
+# Uninstall Nginx and all configurations
+sudo ./nginx_installer.sh --uninstall
 ```
 
 **Parameters:**
 - `--skip-confirm` - Skip installation confirmation prompt
 - `--site DOMAIN` - Automatically create and configure a site for the specified domain
+- `--uninstall` - Uninstall Nginx, remove all configurations, sites, logs, and cache (requires confirmation)
 
 **What the script does:**
 

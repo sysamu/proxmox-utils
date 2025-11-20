@@ -1,10 +1,11 @@
 #!/bin/bash
 # Nginx installer for static content serving (HTTP only, port 80)
-# Usage: ./nginx_installer.sh [--skip-confirm] [--site DOMAIN]
+# Usage: ./nginx_installer.sh [--skip-confirm] [--site DOMAIN] [--uninstall]
 # Examples:
 #   ./nginx_installer.sh                              # Install only
 #   ./nginx_installer.sh --site images.example.com   # Install + create site
 #   ./nginx_installer.sh --skip-confirm --site images.example.com
+#   ./nginx_installer.sh --uninstall                  # Uninstall Nginx and all configurations
 # Features:
 #   - Installs Nginx optimized for static content (images, files, etc.)
 #   - Auto-optimizes based on system specs (CPU, RAM)
@@ -27,6 +28,7 @@ NC='\033[0m' # No Color
 # Parse arguments
 SKIP_CONFIRM=false
 SITE_DOMAIN=""
+UNINSTALL_MODE=false
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -38,24 +40,90 @@ while [[ $# -gt 0 ]]; do
             SITE_DOMAIN="$2"
             shift 2
             ;;
+        --uninstall)
+            UNINSTALL_MODE=true
+            shift
+            ;;
         *)
             echo -e "${RED}Unknown argument: $1${NC}"
-            echo "Usage: $0 [--skip-confirm] [--site DOMAIN]"
+            echo "Usage: $0 [--skip-confirm] [--site DOMAIN] [--uninstall]"
             exit 1
             ;;
     esac
 done
-
-echo -e "${BLUE}╔════════════════════════════════════════════════════╗${NC}"
-echo -e "${BLUE}║   🚀 Nginx Installer & Optimizer                  ║${NC}"
-echo -e "${BLUE}╚════════════════════════════════════════════════════╝${NC}"
-echo
 
 # Check if running as root
 if [[ $EUID -ne 0 ]]; then
     echo -e "${RED}❌ Este script debe ejecutarse como root (usa sudo)${NC}"
     exit 1
 fi
+
+# Uninstall mode
+if [[ "$UNINSTALL_MODE" == true ]]; then
+    echo -e "${RED}╔════════════════════════════════════════════════════╗${NC}"
+    echo -e "${RED}║   🗑️  Nginx Uninstaller                           ║${NC}"
+    echo -e "${RED}╚════════════════════════════════════════════════════╝${NC}"
+    echo
+
+    echo -e "${BLUE}📦 Paquetes a desinstalar:${NC}"
+    echo "   - nginx"
+    echo "   - libnginx-mod-http-cache-purge"
+    echo
+
+    echo -e "${BLUE}📁 Directorios y archivos a eliminar:${NC}"
+    echo "   - /etc/nginx/ (configuración)"
+    echo "   - /var/www/html/ (sitios web)"
+    echo "   - /var/log/nginx/ (logs)"
+    echo "   - /var/cache/nginx/ (caché)"
+    echo
+
+    echo -e "${RED}⚠️  ADVERTENCIA: Esta acción eliminará Nginx y todas sus configuraciones${NC}"
+    echo -e "${RED}⚠️  Se perderán todos los sitios, logs y configuraciones personalizadas${NC}"
+    read -p "¿Desea continuar con la desinstalación? (s/N) " yn
+    if [[ "$yn" != "s" && "$yn" != "S" ]]; then
+        echo -e "${YELLOW}⏹  Desinstalación cancelada${NC}"
+        exit 0
+    fi
+
+    echo
+    echo -e "${BLUE}🛑 Deteniendo servicio Nginx...${NC}"
+    systemctl stop nginx 2>/dev/null || true
+    systemctl disable nginx 2>/dev/null || true
+    echo -e "   ${GREEN}✓${NC} Servicio Nginx detenido y deshabilitado"
+
+    echo
+    echo -e "${BLUE}🗑️  Desinstalando paquetes...${NC}"
+    apt remove --purge -y nginx libnginx-mod-http-cache-purge nginx-common nginx-core
+
+    echo
+    echo -e "${BLUE}📁 Eliminando directorios de configuración...${NC}"
+    rm -rf /etc/nginx
+    echo -e "   ${GREEN}✓${NC} /etc/nginx eliminado"
+
+    rm -rf /var/www/html
+    echo -e "   ${GREEN}✓${NC} /var/www/html eliminado"
+
+    rm -rf /var/log/nginx
+    echo -e "   ${GREEN}✓${NC} /var/log/nginx eliminado"
+
+    rm -rf /var/cache/nginx
+    echo -e "   ${GREEN}✓${NC} /var/cache/nginx eliminado"
+
+    echo
+    echo -e "${BLUE}🧹 Limpiando dependencias no utilizadas...${NC}"
+    apt autoremove -y
+
+    echo
+    echo -e "${GREEN}✅ Desinstalación completada${NC}"
+    echo -e "${GREEN}✨ Nginx y todas sus configuraciones han sido eliminadas${NC}"
+
+    exit 0
+fi
+
+echo -e "${BLUE}╔════════════════════════════════════════════════════╗${NC}"
+echo -e "${BLUE}║   🚀 Nginx Installer & Optimizer                  ║${NC}"
+echo -e "${BLUE}╚════════════════════════════════════════════════════╝${NC}"
+echo
 
 # Detect system specifications
 echo -e "${CYAN}📊 Detectando especificaciones del sistema...${NC}"

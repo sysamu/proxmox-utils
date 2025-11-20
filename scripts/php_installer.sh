@@ -1,17 +1,20 @@
 #!/bin/bash
 # PHP installer with customizable version and optional modules file
-# Usage: ./php_installer.sh [VERSION] [--modules FILE]
+# Usage: ./php_installer.sh [VERSION] [--modules FILE] [--uninstall]
 # Examples:
 #   ./php_installer.sh                        # Installs PHP 8.4 (base + dev + fpm)
 #   ./php_installer.sh 8.3                    # Installs PHP 8.3 (base + dev + fpm)
 #   ./php_installer.sh --modules modules.txt  # Installs PHP 8.4 + modules from file
 #   ./php_installer.sh 8.3 --modules modules.txt # Installs PHP 8.3 + modules from file
+#   ./php_installer.sh --uninstall            # Uninstalls PHP 8.4 (uses php_modules.txt if exists)
+#   ./php_installer.sh 8.3 --uninstall        # Uninstalls PHP 8.3
 
 set -euo pipefail
 
 # Default PHP version
 PHP_VERSION="8.4"
 MODULES_FILE=""
+UNINSTALL_MODE=false
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
@@ -20,9 +23,13 @@ while [[ $# -gt 0 ]]; do
             MODULES_FILE="$2"
             shift 2
             ;;
+        --uninstall)
+            UNINSTALL_MODE=true
+            shift
+            ;;
         -*)
             echo "Unknown option: $1"
-            echo "Usage: $0 [VERSION] [--modules FILE]"
+            echo "Usage: $0 [VERSION] [--modules FILE] [--uninstall]"
             exit 1
             ;;
         *)
@@ -43,6 +50,91 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
+
+# Uninstall mode
+if [[ "$UNINSTALL_MODE" == true ]]; then
+    echo -e "${RED}🗑️  PHP ${PHP_VERSION} Uninstaller${NC}"
+    echo "================================"
+    echo
+
+    # Check if php_modules.txt exists in current directory
+    if [[ -z "$MODULES_FILE" && -f "php_modules.txt" ]]; then
+        MODULES_FILE="php_modules.txt"
+        echo -e "${BLUE}ℹ  Encontrado php_modules.txt en el directorio actual${NC}"
+        echo
+    fi
+
+    # Build uninstall list
+    UNINSTALL_LIST=()
+    PHP_BASE="php${PHP_VERSION}"
+    PHP_DEV="php${PHP_VERSION}-dev"
+    PHP_FPM="php${PHP_VERSION}-fpm"
+
+    # Add base packages
+    UNINSTALL_LIST+=("$PHP_BASE" "$PHP_DEV" "$PHP_FPM")
+
+    # Process modules file if exists
+    if [[ -n "$MODULES_FILE" && -f "$MODULES_FILE" ]]; then
+        echo -e "${BLUE}📄 Procesando módulos desde: $MODULES_FILE${NC}"
+        while IFS= read -r line; do
+            mod=$(echo "$line" | sed 's/#.*//' | tr -d '[:space:]')
+            [[ -z "$mod" ]] && continue
+            pkg="php${PHP_VERSION}-${mod}"
+
+            # Check if package is installed
+            if dpkg -l | grep -q "^ii.*$pkg"; then
+                UNINSTALL_LIST+=("$pkg")
+                echo -e "   ${GREEN}✓${NC} $pkg (instalado)"
+            else
+                echo -e "   ${YELLOW}⚠${NC}  $pkg (no instalado)"
+            fi
+        done < "$MODULES_FILE"
+        echo
+    fi
+
+    echo -e "${BLUE}📦 Paquetes a desinstalar:${NC}"
+    echo "   Total: ${#UNINSTALL_LIST[@]}"
+    printf '   - %s\n' "${UNINSTALL_LIST[@]}"
+    echo
+
+    # Confirmation prompt
+    echo -e "${RED}⚠️  ADVERTENCIA: Esta acción eliminará los paquetes listados${NC}"
+    read -p "¿Desea continuar con la desinstalación? (s/N) " yn
+    if [[ "$yn" != "s" && "$yn" != "S" ]]; then
+        echo -e "${YELLOW}⏹  Desinstalación cancelada${NC}"
+        exit 0
+    fi
+
+    echo
+    echo -e "${BLUE}🗑️  Desinstalando paquetes...${NC}"
+    if apt remove --purge -y "${UNINSTALL_LIST[@]}"; then
+        echo
+        echo -e "${GREEN}✅ Desinstalación completada${NC}"
+
+        # Stop and disable PHP-FPM service if exists
+        FPM_SERVICE="php${PHP_VERSION}-fpm"
+        if systemctl list-units --full -all | grep -q "$FPM_SERVICE.service"; then
+            echo
+            echo -e "${BLUE}🔧 Deteniendo servicio PHP-FPM...${NC}"
+            systemctl stop "$FPM_SERVICE" 2>/dev/null || true
+            systemctl disable "$FPM_SERVICE" 2>/dev/null || true
+            echo -e "   ${GREEN}✓${NC} Servicio $FPM_SERVICE detenido y deshabilitado"
+        fi
+
+        echo
+        echo -e "${BLUE}🧹 Limpiando dependencias no utilizadas...${NC}"
+        apt autoremove -y
+
+        echo
+        echo -e "${GREEN}✨ Proceso de desinstalación finalizado${NC}"
+    else
+        echo
+        echo -e "${RED}❌ Hubo errores durante la desinstalación${NC}"
+        exit 1
+    fi
+
+    exit 0
+fi
 
 echo -e "${BLUE}🐘 PHP ${PHP_VERSION} Installer${NC}"
 echo "================================"
