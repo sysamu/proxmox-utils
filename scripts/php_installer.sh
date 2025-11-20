@@ -1,16 +1,37 @@
 #!/bin/bash
 # PHP installer with customizable version and optional modules file
-# Usage: ./php_installer.sh [PHP_VERSION] [php_modules.txt]
+# Usage: ./php_installer.sh [VERSION] [--modules FILE]
 # Examples:
-#   ./php_installer.sh                    # Installs PHP 8.4 (base + dev)
-#   ./php_installer.sh 8.3                # Installs PHP 8.3 (base + dev)
-#   ./php_installer.sh 8.4 modules.txt    # Installs PHP 8.4 + modules from file
+#   ./php_installer.sh                        # Installs PHP 8.4 (base + dev + fpm)
+#   ./php_installer.sh 8.3                    # Installs PHP 8.3 (base + dev + fpm)
+#   ./php_installer.sh --modules modules.txt  # Installs PHP 8.4 + modules from file
+#   ./php_installer.sh 8.3 --modules modules.txt # Installs PHP 8.3 + modules from file
 
 set -euo pipefail
 
 # Default PHP version
-PHP_VERSION="${1:-8.4}"
-MODULES_FILE="${2:-}"
+PHP_VERSION="8.4"
+MODULES_FILE=""
+
+# Parse arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --modules)
+            MODULES_FILE="$2"
+            shift 2
+            ;;
+        -*)
+            echo "Unknown option: $1"
+            echo "Usage: $0 [VERSION] [--modules FILE]"
+            exit 1
+            ;;
+        *)
+            # If it's not a flag, assume it's the PHP version
+            PHP_VERSION="$1"
+            shift
+            ;;
+    esac
+done
 
 # Arrays for tracking
 INSTALL_LIST=()

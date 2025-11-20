@@ -163,12 +163,15 @@ chmod +x php_installer.sh
 ./php_installer.sh 8.3
 
 # Install PHP 8.4 with modules from file
-./php_installer.sh 8.4 php_modules.txt
+./php_installer.sh --modules php_modules.txt
+
+# Install PHP 8.3 with modules from file
+./php_installer.sh 8.3 --modules php_modules.txt
 ```
 
 **Parameters:**
-- `$1` (optional): PHP version to install (default: `8.4`)
-- `$2` (optional): Path to modules file (e.g., `php_modules.txt`)
+- `VERSION` (optional): PHP version to install (default: `8.4`)
+- `--modules FILE` (optional): Path to modules file (e.g., `php_modules.txt`)
 
 ---
 
@@ -205,7 +208,10 @@ opcache
 **Step 2: Run the installer**
 
 ```bash
-./php_installer.sh 8.4 php_modules.txt
+./php_installer.sh --modules php_modules.txt
+
+# Or with specific PHP version
+./php_installer.sh 8.4 --modules php_modules.txt
 ```
 
 That's it! No need to follow the migration steps below.
@@ -324,7 +330,7 @@ soap
 **Step 4: Run the installer**
 
 ```bash
-./php_installer.sh 8.4 php_modules.txt
+./php_installer.sh 8.4 --modules php_modules.txt
 ```
 
 **What the script does:**
@@ -364,6 +370,126 @@ Just copy/paste that into ChatGPT and it will tell you if those modules:
 - If a module doesn't exist, it's skipped (no installation failure)
 - Core modules like `Core`, `standard`, `SPL` don't need to be in the file
 - Module names should NOT include the `php8.4-` prefix, just the name (e.g., `curl`, not `php8.4-curl`)
+
+---
+
+### 5. `nginx_installer.sh`
+
+**Purpose:** Install and auto-configure Nginx with optimization, monitoring, and security features.
+
+**Features:**
+- Installs Nginx with useful modules (cache-purge, headers-more, geoip2)
+- Auto-optimizes configuration based on system specs (CPU cores, RAM)
+- Creates monitoring dashboard accessible only from LAN
+- Sets up security headers and best practices
+- Creates default site and templates for future subdomains
+- Includes snippets for proxy, WebSocket, and security headers
+
+**Usage:**
+```bash
+chmod +x nginx_installer.sh
+
+# Interactive installation (asks for confirmation)
+sudo ./nginx_installer.sh
+
+# Silent installation (no confirmation)
+sudo ./nginx_installer.sh --skip-confirm
+```
+
+**What the script does:**
+
+1. **System Analysis:**
+   - Detects CPU cores and RAM
+   - Calculates optimal Nginx settings
+   - Identifies LAN IP for monitoring endpoint
+
+2. **Installs Nginx with modules:**
+   - `nginx` - Core web server
+   - `libnginx-mod-http-headers-more-filter` - Advanced header manipulation
+   - `libnginx-mod-http-cache-purge` - Cache management
+   - `libnginx-mod-http-geoip2` - GeoIP support
+
+3. **Auto-optimization:**
+   - Sets `worker_processes` = CPU cores
+   - Sets `worker_connections` = 1024 × CPU cores
+   - Adjusts buffer sizes based on available RAM
+   - Configures optimal timeouts and SSL settings
+
+4. **Creates snippets:**
+   - `/etc/nginx/snippets/security.conf` - Security headers
+   - `/etc/nginx/snippets/proxy_options.conf` - Reverse proxy headers
+   - `/etc/nginx/snippets/wss_options.conf` - WebSocket configuration
+   - `/etc/nginx/snippets/block_robots_snippet.conf` - Block search engines
+
+5. **Monitoring dashboard (LAN only):**
+   - Accessible at `http://[LAN_IP]:8080/nginx_status`
+   - Shows basic Nginx statistics
+   - Only accessible from LAN subnet and localhost
+
+6. **Creates templates:**
+   - `/etc/nginx/templates/nginx-subdomain` - HTTP reverse proxy template
+   - `/etc/nginx/templates/nginx-wss` - WebSocket Secure template
+
+7. **Default site:**
+   - Creates a welcome page at `/var/www/html/index.html`
+   - Configured with security headers
+
+**Example output:**
+
+```
+📊 Detectando especificaciones del sistema...
+   ✓ CPU Cores: 4
+   ✓ RAM: 8GB (8192MB)
+   ✓ LAN IP: 192.168.1.100
+
+⚙️  Configuración optimizada calculada:
+   worker_processes: 4
+   worker_connections: 4096
+   worker_rlimit_nofile: 8192
+   client_max_body_size: 100M
+   keepalive_timeout: 65s
+```
+
+**After installation:**
+
+- **Main site:** `http://[SERVER_IP]`
+- **Monitoring:** `http://[LAN_IP]:8080/nginx_status` (LAN only)
+- **Configuration:** `/etc/nginx/nginx.conf`
+- **Sites:** `/etc/nginx/sites-available/`
+- **Templates:** `/etc/nginx/templates/`
+- **Logs:** `/var/log/nginx/`
+
+**Creating new subdomain sites:**
+
+Use the templates created by the installer with the bash functions from `nginx-reverse-utils`:
+
+```bash
+# HTTP reverse proxy
+gensitecert images.example.com backend.local 8080
+
+# WebSocket Secure
+genwsscert wss.example.com backend.local 9000
+```
+
+**Monitoring endpoint details:**
+
+Access `http://[LAN_IP]:8080/nginx_status` from your LAN to see:
+- Active connections
+- Server accepts/handled/requests
+- Reading/Writing/Waiting connections
+
+**Security notes:**
+- Server tokens disabled (`server_tokens off`)
+- Security headers included (X-Frame-Options, X-Content-Type-Options, etc.)
+- Modern SSL/TLS configuration (TLS 1.2+, secure ciphers)
+- Monitoring endpoint restricted to LAN only
+
+**Optimization details:**
+
+The script adjusts settings based on RAM:
+- **8GB+ RAM:** 100M max body size, 128k buffers, 65s keepalive
+- **4-7GB RAM:** 50M max body size, 64k buffers, 60s keepalive
+- **<4GB RAM:** 20M max body size, 32k buffers, 30s keepalive
 
 ---
 
