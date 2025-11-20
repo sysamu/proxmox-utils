@@ -10,10 +10,10 @@ All scripts can be downloaded and executed directly from this repository:
 
 ```bash
 # Download and run immediately
-curl -sL https://raw.githubusercontent.com/samuprojects/proxmox-utils/main/scripts/SCRIPT_NAME.sh | sudo bash
+curl -sL https://raw.githubusercontent.com/sysamu/proxmox-utils/main/scripts/SCRIPT_NAME.sh | sudo bash
 
 # Or download first, review, then execute
-wget https://raw.githubusercontent.com/samuprojects/proxmox-utils/main/scripts/SCRIPT_NAME.sh
+wget https://raw.githubusercontent.com/sysamu/proxmox-utils/main/scripts/SCRIPT_NAME.sh
 chmod +x SCRIPT_NAME.sh
 sudo ./SCRIPT_NAME.sh
 ```
@@ -29,7 +29,7 @@ Replace `SCRIPT_NAME.sh` with the desired script from the list below.
 **Quick install:**
 ```bash
 # Download and inspect
-wget https://raw.githubusercontent.com/samuprojects/proxmox-utils/main/scripts/zfs-pool-r0.sh
+wget https://raw.githubusercontent.com/sysamu/proxmox-utils/main/scripts/zfs-pool-r0.sh
 chmod +x zfs-pool-r0.sh
 
 # Then run with your disk paths
@@ -77,7 +77,7 @@ lsblk -d -o NAME,SIZE,MODEL | grep nvme
 
 **Quick install:**
 ```bash
-wget https://raw.githubusercontent.com/samuprojects/proxmox-utils/main/scripts/zfs-limit-arc.sh
+wget https://raw.githubusercontent.com/sysamu/proxmox-utils/main/scripts/zfs-limit-arc.sh
 chmod +x zfs-limit-arc.sh
 sudo ./zfs-limit-arc.sh
 ```
@@ -106,10 +106,10 @@ chmod +x zfs-limit-arc.sh
 **Quick install:**
 ```bash
 # Download and run directly (auto-detects PHP version)
-curl -sL https://raw.githubusercontent.com/samuprojects/proxmox-utils/main/scripts/apache_optimizer.sh | sudo bash
+curl -sL https://raw.githubusercontent.com/sysamu/proxmox-utils/main/scripts/apache_optimizer.sh | sudo bash
 
 # Or download, review, then execute
-wget https://raw.githubusercontent.com/samuprojects/proxmox-utils/main/scripts/apache_optimizer.sh
+wget https://raw.githubusercontent.com/sysamu/proxmox-utils/main/scripts/apache_optimizer.sh
 chmod +x apache_optimizer.sh
 sudo ./apache_optimizer.sh
 ```
@@ -186,10 +186,10 @@ sudo ./apache_optimizer.sh
 **Quick install:**
 ```bash
 # Install PHP 8.4 with default modules
-curl -sL https://raw.githubusercontent.com/samuprojects/proxmox-utils/main/scripts/php_installer.sh | sudo bash
+curl -sL https://raw.githubusercontent.com/sysamu/proxmox-utils/main/scripts/php_installer.sh | sudo bash
 
 # Download to customize version or add modules
-wget https://raw.githubusercontent.com/samuprojects/proxmox-utils/main/scripts/php_installer.sh
+wget https://raw.githubusercontent.com/sysamu/proxmox-utils/main/scripts/php_installer.sh
 chmod +x php_installer.sh
 
 # Examples:
@@ -440,10 +440,10 @@ Just copy/paste that into ChatGPT and it will tell you if those modules:
 **Quick install:**
 ```bash
 # Interactive installation (recommended - asks for confirmation)
-curl -sL https://raw.githubusercontent.com/samuprojects/proxmox-utils/main/scripts/nginx_installer.sh | sudo bash
+curl -sL https://raw.githubusercontent.com/sysamu/proxmox-utils/main/scripts/nginx_installer.sh | sudo bash
 
 # Silent install (no prompts)
-wget https://raw.githubusercontent.com/samuprojects/proxmox-utils/main/scripts/nginx_installer.sh
+wget https://raw.githubusercontent.com/sysamu/proxmox-utils/main/scripts/nginx_installer.sh
 chmod +x nginx_installer.sh
 sudo ./nginx_installer.sh --skip-confirm
 
@@ -451,7 +451,7 @@ sudo ./nginx_installer.sh --skip-confirm
 sudo ./nginx_installer.sh --site images.example.com
 
 # One-liner with site creation (after downloading)
-wget -q https://raw.githubusercontent.com/samuprojects/proxmox-utils/main/scripts/nginx_installer.sh && \
+wget -q https://raw.githubusercontent.com/sysamu/proxmox-utils/main/scripts/nginx_installer.sh && \
 chmod +x nginx_installer.sh && \
 sudo ./nginx_installer.sh --skip-confirm --site images.example.com
 ```
