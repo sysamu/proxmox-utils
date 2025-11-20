@@ -375,15 +375,16 @@ Just copy/paste that into ChatGPT and it will tell you if those modules:
 
 ### 5. `nginx_installer.sh`
 
-**Purpose:** Install and auto-configure Nginx with optimization, monitoring, and security features.
+**Purpose:** Install and auto-configure Nginx optimized for serving static content (HTTP only, port 80).
 
 **Features:**
-- Installs Nginx with useful modules (cache-purge, headers-more, geoip2)
+- Installs Nginx optimized for static files (images, CSS, JS, fonts, etc.)
 - Auto-optimizes configuration based on system specs (CPU cores, RAM)
+- Configures browser caching for static assets (30 days for images/fonts, 7 days for documents)
+- Enables gzip compression for text-based files
+- Sets up cache directory for Nginx proxy cache
 - Creates monitoring dashboard accessible only from LAN
-- Sets up security headers and best practices
-- Creates default site and templates for future subdomains
-- Includes snippets for proxy, WebSocket, and security headers
+- HTTP only (port 80) - SSL/TLS handled by upstream reverse proxy
 
 **Usage:**
 ```bash
@@ -405,34 +406,34 @@ sudo ./nginx_installer.sh --skip-confirm
 
 2. **Installs Nginx with modules:**
    - `nginx` - Core web server
-   - `libnginx-mod-http-headers-more-filter` - Advanced header manipulation
    - `libnginx-mod-http-cache-purge` - Cache management
-   - `libnginx-mod-http-geoip2` - GeoIP support
 
 3. **Auto-optimization:**
    - Sets `worker_processes` = CPU cores
    - Sets `worker_connections` = 1024 × CPU cores
    - Adjusts buffer sizes based on available RAM
-   - Configures optimal timeouts and SSL settings
+   - Configures optimal timeouts for static content
 
-4. **Creates snippets:**
-   - `/etc/nginx/snippets/security.conf` - Security headers
-   - `/etc/nginx/snippets/proxy_options.conf` - Reverse proxy headers
-   - `/etc/nginx/snippets/wss_options.conf` - WebSocket configuration
-   - `/etc/nginx/snippets/block_robots_snippet.conf` - Block search engines
+4. **Static file caching:**
+   - Browser caching: 30 days for images, fonts, CSS, JS
+   - Browser caching: 7 days for PDFs, archives
+   - Creates `/var/cache/nginx` for proxy cache
+   - Gzip compression enabled for text-based files
 
-5. **Monitoring dashboard (LAN only):**
+5. **Creates snippet:**
+   - `/etc/nginx/snippets/static_cache.conf` - Browser caching rules
+
+6. **Monitoring dashboard (LAN only):**
    - Accessible at `http://[LAN_IP]:8080/nginx_status`
    - Shows basic Nginx statistics
    - Only accessible from LAN subnet and localhost
 
-6. **Creates templates:**
-   - `/etc/nginx/templates/nginx-subdomain` - HTTP reverse proxy template
-   - `/etc/nginx/templates/nginx-wss` - WebSocket Secure template
+7. **Creates template:**
+   - `/etc/nginx/templates/nginx-static` - Static content serving template
 
-7. **Default site:**
+8. **Default site:**
    - Creates a welcome page at `/var/www/html/index.html`
-   - Configured with security headers
+   - Configured with static file caching
 
 **Example output:**
 
@@ -456,19 +457,39 @@ sudo ./nginx_installer.sh --skip-confirm
 - **Monitoring:** `http://[LAN_IP]:8080/nginx_status` (LAN only)
 - **Configuration:** `/etc/nginx/nginx.conf`
 - **Sites:** `/etc/nginx/sites-available/`
-- **Templates:** `/etc/nginx/templates/`
+- **Template:** `/etc/nginx/templates/nginx-static`
+- **Cache snippet:** `/etc/nginx/snippets/static_cache.conf`
 - **Logs:** `/var/log/nginx/`
+- **Web root:** `/var/www/html/`
 
-**Creating new subdomain sites:**
+**Creating a new static site:**
 
-Use the templates created by the installer with the bash functions from `nginx-reverse-utils`:
-
+1. Copy the template:
 ```bash
-# HTTP reverse proxy
-gensitecert images.example.com backend.local 8080
+sudo cp /etc/nginx/templates/nginx-static /etc/nginx/sites-available/images.example.com.conf
+```
 
-# WebSocket Secure
-genwsscert wss.example.com backend.local 9000
+2. Edit the file and replace placeholders:
+```bash
+sudo nano /etc/nginx/sites-available/images.example.com.conf
+# Replace __DOMAIN__ with: images.example.com
+# Replace __DOMAIN_SAFE__ with: images_example_com
+```
+
+3. Create the web directory:
+```bash
+sudo mkdir -p /var/www/images.example.com
+sudo chown www-data:www-data /var/www/images.example.com
+```
+
+4. Enable the site:
+```bash
+sudo ln -s /etc/nginx/sites-available/images.example.com.conf /etc/nginx/sites-enabled/
+```
+
+5. Test and reload:
+```bash
+sudo nginx -t && sudo systemctl reload nginx
 ```
 
 **Monitoring endpoint details:**
@@ -478,11 +499,12 @@ Access `http://[LAN_IP]:8080/nginx_status` from your LAN to see:
 - Server accepts/handled/requests
 - Reading/Writing/Waiting connections
 
-**Security notes:**
-- Server tokens disabled (`server_tokens off`)
-- Security headers included (X-Frame-Options, X-Content-Type-Options, etc.)
-- Modern SSL/TLS configuration (TLS 1.2+, secure ciphers)
-- Monitoring endpoint restricted to LAN only
+**Caching details:**
+
+Browser caching is automatically applied to:
+- **30 days:** `.jpg`, `.jpeg`, `.png`, `.gif`, `.ico`, `.css`, `.js`, `.svg`, `.webp`, `.woff`, `.woff2`, `.ttf`, `.eot`
+- **7 days:** `.pdf`, `.zip`, `.tar`, `.gz`, `.rar`
+- Gzip compression enabled for text files, JSON, XML, fonts
 
 **Optimization details:**
 
@@ -490,6 +512,12 @@ The script adjusts settings based on RAM:
 - **8GB+ RAM:** 100M max body size, 128k buffers, 65s keepalive
 - **4-7GB RAM:** 50M max body size, 64k buffers, 60s keepalive
 - **<4GB RAM:** 20M max body size, 32k buffers, 30s keepalive
+
+**Important notes:**
+- This setup is HTTP only (port 80) - SSL/TLS should be handled by upstream reverse proxy
+- Server tokens disabled for security
+- Monitoring endpoint restricted to LAN only
+- Perfect for serving static assets behind a reverse proxy
 
 ---
 

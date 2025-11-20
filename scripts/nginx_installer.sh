@@ -1,12 +1,13 @@
 #!/bin/bash
-# Nginx installer with auto-optimization and monitoring dashboard
+# Nginx installer for static content serving (HTTP only, port 80)
 # Usage: ./nginx_installer.sh [--skip-confirm]
 # Features:
-#   - Installs Nginx with useful modules
+#   - Installs Nginx optimized for static content (images, files, etc.)
 #   - Auto-optimizes based on system specs (CPU, RAM)
-#   - Sets up nginx-module-vts for metrics/monitoring (LAN only)
-#   - Creates default site template
-#   - Configures security headers and best practices
+#   - Configures caching for static assets
+#   - Enables gzip compression
+#   - Sets up monitoring endpoint (LAN only)
+#   - Creates default site template for static serving
 
 set -euo pipefail
 
@@ -95,13 +96,8 @@ apt update -qq
 
 PACKAGES=(
     "nginx"
-    "libnginx-mod-http-headers-more-filter"  # Extra headers manipulation
-    "libnginx-mod-http-cache-purge"          # Cache management
-    "libnginx-mod-http-geoip2"               # GeoIP support
+    "libnginx-mod-http-cache-purge"  # Cache management
 )
-
-# Note: nginx-module-vts is not available in standard repos
-# We'll document how to add it manually if needed
 
 apt install -y "${PACKAGES[@]}"
 echo -e "   ${GREEN}✓${NC} Nginx y módulos instalados"
@@ -151,20 +147,8 @@ http {
     client_header_timeout 12;
     send_timeout 10;
 
-    # server_names_hash_bucket_size 64;
-    # server_name_in_redirect off;
-
     include /etc/nginx/mime.types;
     default_type application/octet-stream;
-
-    ##
-    # SSL Settings
-    ##
-    ssl_protocols TLSv1.2 TLSv1.3;
-    ssl_prefer_server_ciphers on;
-    ssl_ciphers 'ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384';
-    ssl_session_cache shared:SSL:10m;
-    ssl_session_timeout 10m;
 
     ##
     # Logging Settings
@@ -173,17 +157,27 @@ http {
     error_log /var/log/nginx/error.log warn;
 
     ##
-    # Gzip Settings
+    # Gzip Compression
     ##
     gzip on;
     gzip_vary on;
     gzip_proxied any;
     gzip_comp_level 6;
+    gzip_min_length 256;
     gzip_types text/plain text/css text/xml text/javascript
                application/json application/javascript application/xml+rss
                application/rss+xml font/truetype font/opentype
                application/vnd.ms-fontobject image/svg+xml;
     gzip_disable "msie6";
+
+    ##
+    # Static File Caching
+    ##
+    # Cache directory: levels=1:2 creates subdirectories for efficient lookup
+    # keys_zone=static_cache:10m allocates 10MB for cache keys (~80,000 keys)
+    # max_size=1g limits cache to 1GB
+    # inactive=60m removes cached items not accessed in 60 minutes
+    proxy_cache_path /var/cache/nginx levels=1:2 keys_zone=static_cache:10m max_size=1g inactive=60m use_temp_path=off;
 
     ##
     # Virtual Host Configs
@@ -199,65 +193,29 @@ echo
 # Create snippets directory if it doesn't exist
 mkdir -p /etc/nginx/snippets
 
-# Create security headers snippet
-echo -e "${BLUE}🔒 Creando snippets de seguridad...${NC}"
-cat > /etc/nginx/snippets/security.conf <<'EOF'
-# Security headers
-add_header X-Frame-Options "SAMEORIGIN" always;
-add_header X-Content-Type-Options "nosniff" always;
-add_header X-XSS-Protection "1; mode=block" always;
-add_header Referrer-Policy "no-referrer-when-downgrade" always;
-# Uncomment if you have HTTPS:
-# add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
-EOF
+# Create static file caching snippet
+echo -e "${BLUE}💾 Creando snippets de caché...${NC}"
+cat > /etc/nginx/snippets/static_cache.conf <<'EOF'
+# Static file caching configuration
+location ~* \.(jpg|jpeg|png|gif|ico|css|js|svg|webp|woff|woff2|ttf|eot)$ {
+    expires 30d;
+    add_header Cache-Control "public, immutable";
+    access_log off;
+}
 
-cat > /etc/nginx/snippets/proxy_options.conf <<'EOF'
-# Proxy headers
-proxy_set_header Host $host;
-proxy_set_header X-Real-IP $remote_addr;
-proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-proxy_set_header X-Forwarded-Proto $scheme;
-proxy_set_header X-Forwarded-Host $host;
-proxy_set_header X-Forwarded-Port $server_port;
-
-# Proxy timeouts
-proxy_connect_timeout 60s;
-proxy_send_timeout 60s;
-proxy_read_timeout 60s;
-
-# Proxy buffering
-proxy_buffering on;
-proxy_buffer_size 4k;
-proxy_buffers 8 4k;
-proxy_busy_buffers_size 8k;
-EOF
-
-cat > /etc/nginx/snippets/wss_options.conf <<'EOF'
-# WebSocket headers
-proxy_http_version 1.1;
-proxy_set_header Upgrade $http_upgrade;
-proxy_set_header Connection "upgrade";
-proxy_set_header Host $host;
-proxy_set_header X-Real-IP $remote_addr;
-proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-proxy_set_header X-Forwarded-Proto $scheme;
-
-# WebSocket timeouts
-proxy_connect_timeout 7d;
-proxy_send_timeout 7d;
-proxy_read_timeout 7d;
-EOF
-
-cat > /etc/nginx/snippets/block_robots_snippet.conf <<'EOF'
-# Block search engine indexing
-location = /robots.txt {
-    add_header Content-Type text/plain;
-    return 200 "User-agent: *\nDisallow: /\n";
+# Additional static assets
+location ~* \.(pdf|zip|tar|gz|rar)$ {
+    expires 7d;
+    add_header Cache-Control "public";
 }
 EOF
 
-echo -e "   ${GREEN}✓${NC} Security snippets creados"
+echo -e "   ${GREEN}✓${NC} Cache snippets creados"
 echo
+
+# Create cache directory
+mkdir -p /var/cache/nginx
+chown www-data:www-data /var/cache/nginx
 
 # Create status monitoring endpoint (LAN only)
 echo -e "${BLUE}📊 Configurando endpoint de monitoreo (solo LAN)...${NC}"
@@ -283,6 +241,7 @@ server {
 EOF
 
 echo -e "   ${GREEN}✓${NC} Status endpoint configurado en http://${LAN_IP}:8080/nginx_status"
+echo -e "   ${GREEN}✓${NC} Cache directory creado en /var/cache/nginx"
 echo
 
 # Create default site template
@@ -302,13 +261,10 @@ server {
 
     server_name _;
     root /var/www/html;
-    index index.html index.htm index.nginx-debian.html;
+    index index.html index.htm;
 
-    # Security headers
-    include snippets/security.conf;
-
-    # Block robots
-    include snippets/block_robots_snippet.conf;
+    # Static file caching
+    include snippets/static_cache.conf;
 
     location / {
         try_files $uri $uri/ =404;
@@ -335,53 +291,36 @@ echo
 # Create template directory for future sites
 mkdir -p /etc/nginx/templates
 
-cat > /etc/nginx/templates/nginx-subdomain <<'EOF'
+cat > /etc/nginx/templates/nginx-static <<'EOF'
+# Template for static content serving (images, files, etc.)
+# Usage: Replace __DOMAIN__ and __DOMAIN_SAFE__
 server {
+    listen 80;
     server_name __DOMAIN__;
 
-    large_client_header_buffers 4 64k;
-    include snippets/security.conf;
-    include snippets/block_robots_snippet.conf;
+    root /var/www/__DOMAIN__;
+    index index.html;
+
+    # Static file caching
+    include snippets/static_cache.conf;
 
     location / {
-        proxy_pass http://__UPSTREAM__/;
-        include snippets/proxy_options.conf;
-        autoindex off;
+        try_files $uri $uri/ =404;
+    }
+
+    # Deny access to hidden files
+    location ~ /\. {
+        deny all;
+        access_log off;
+        log_not_found off;
     }
 
     access_log /var/log/nginx/__DOMAIN_SAFE___access.log;
-    error_log /var/log/nginx/__DOMAIN_SAFE___error.log error;
+    error_log /var/log/nginx/__DOMAIN_SAFE___error.log;
 }
 EOF
 
-cat > /etc/nginx/templates/nginx-wss <<'EOF'
-upstream __DOMAIN_SAFE___ws {
-    ip_hash;
-    server __UPSTREAM__:__PORT__;
-}
-
-server {
-    listen 443 ssl;
-    server_name __DOMAIN__;
-
-    include snippets/security.conf;
-    include snippets/ssl_wss.conf;
-
-    location / {
-        include snippets/wss_options.conf;
-        proxy_pass http://__DOMAIN_SAFE___ws;
-    }
-
-    access_log /var/log/nginx/__DOMAIN_SAFE___wss_access.log;
-    error_log  /var/log/nginx/__DOMAIN_SAFE___wss_error.log error;
-
-    # Certbot autogenerará:
-    # ssl_certificate /etc/letsencrypt/live/__DOMAIN__/fullchain.pem;
-    # ssl_certificate_key /etc/letsencrypt/live/__DOMAIN__/privkey.pem;
-}
-EOF
-
-echo -e "   ${GREEN}✓${NC} Templates para subdominios creados en /etc/nginx/templates/"
+echo -e "   ${GREEN}✓${NC} Template para sitios estáticos creado en /etc/nginx/templates/"
 echo
 
 # Create default index.html
@@ -390,7 +329,7 @@ cat > /var/www/html/index.html <<'EOF'
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Nginx Installed Successfully</title>
+    <title>Nginx Static Server</title>
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
@@ -436,19 +375,27 @@ cat > /var/www/html/index.html <<'EOF'
             border-radius: 3px;
             font-family: monospace;
         }
+        .feature {
+            color: #059669;
+            font-weight: bold;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="success">✓</div>
-        <h1>Nginx Installed Successfully!</h1>
-        <p>Your Nginx web server is now up and running.</p>
+        <h1>Nginx Static Server Ready!</h1>
+        <p>Optimized for serving static content (images, files, etc.)</p>
         <div class="info">
+            <strong class="feature">Features enabled:</strong><br>
+            • <strong>Gzip compression</strong> for text files<br>
+            • <strong>Browser caching</strong> for static assets<br>
+            • <strong>Performance optimization</strong> based on system specs<br>
+            <br>
             <strong>Next steps:</strong><br>
-            • Configure your sites in <code>/etc/nginx/sites-available/</code><br>
-            • Use templates from <code>/etc/nginx/templates/</code><br>
-            • Monitor status at <code>http://[LAN_IP]:8080/nginx_status</code><br>
-            • Check logs in <code>/var/log/nginx/</code>
+            • Upload files to <code>/var/www/html/</code><br>
+            • Use template from <code>/etc/nginx/templates/nginx-static</code><br>
+            • Monitor at <code>http://[LAN_IP]:8080/nginx_status</code>
         </div>
     </div>
 </body>
@@ -489,21 +436,29 @@ echo -e "${GREEN}║   ✨ Instalación completada exitosamente          ║${NC
 echo -e "${GREEN}╚════════════════════════════════════════════════════╝${NC}"
 echo
 echo -e "${CYAN}📋 Resumen:${NC}"
-echo -e "   ${GREEN}✓${NC} Nginx instalado y optimizado"
+echo -e "   ${GREEN}✓${NC} Nginx instalado y optimizado para contenido estático"
 echo -e "   ${GREEN}✓${NC} Worker processes: ${WORKER_PROCESSES}"
 echo -e "   ${GREEN}✓${NC} Worker connections: ${WORKER_CONNECTIONS}"
-echo -e "   ${GREEN}✓${NC} Sitio por defecto: http://$(hostname -I | awk '{print $1}')"
-echo -e "   ${GREEN}✓${NC} Monitoreo (LAN): http://${LAN_IP}:8080/nginx_status"
+echo -e "   ${GREEN}✓${NC} Gzip compression: Habilitado"
+echo -e "   ${GREEN}✓${NC} Browser caching: 30 días para imágenes/CSS/JS"
+echo -e "   ${GREEN}✓${NC} Cache directory: /var/cache/nginx"
+echo
+echo -e "${CYAN}🌐 Acceso:${NC}"
+echo -e "   • Sitio principal: ${YELLOW}http://$(hostname -I | awk '{print $1}')${NC}"
+echo -e "   • Monitoreo (LAN): ${YELLOW}http://${LAN_IP}:8080/nginx_status${NC}"
 echo
 echo -e "${CYAN}📁 Archivos importantes:${NC}"
 echo -e "   • Configuración: ${YELLOW}/etc/nginx/nginx.conf${NC}"
 echo -e "   • Sites: ${YELLOW}/etc/nginx/sites-available/${NC}"
-echo -e "   • Templates: ${YELLOW}/etc/nginx/templates/${NC}"
-echo -e "   • Snippets: ${YELLOW}/etc/nginx/snippets/${NC}"
+echo -e "   • Template: ${YELLOW}/etc/nginx/templates/nginx-static${NC}"
+echo -e "   • Cache snippet: ${YELLOW}/etc/nginx/snippets/static_cache.conf${NC}"
 echo -e "   • Logs: ${YELLOW}/var/log/nginx/${NC}"
+echo -e "   • Web root: ${YELLOW}/var/www/html/${NC}"
 echo
-echo -e "${CYAN}💡 Próximos pasos:${NC}"
-echo -e "   1. Accede a http://$(hostname -I | awk '{print $1}') para ver el sitio"
-echo -e "   2. Usa los templates para crear nuevos subdominios"
-echo -e "   3. Configura SSL/TLS con certbot si es necesario"
+echo -e "${CYAN}💡 Crear nuevo sitio estático:${NC}"
+echo -e "   1. Copia el template: ${YELLOW}cp /etc/nginx/templates/nginx-static /etc/nginx/sites-available/mysite.conf${NC}"
+echo -e "   2. Edita y reemplaza __DOMAIN__ y __DOMAIN_SAFE__"
+echo -e "   3. Crea el directorio: ${YELLOW}mkdir -p /var/www/mysite${NC}"
+echo -e "   4. Habilita el sitio: ${YELLOW}ln -s /etc/nginx/sites-available/mysite.conf /etc/nginx/sites-enabled/${NC}"
+echo -e "   5. Recarga Nginx: ${YELLOW}nginx -t && systemctl reload nginx${NC}"
 echo
