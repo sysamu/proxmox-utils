@@ -1,11 +1,12 @@
 #!/bin/bash
 # Nginx installer for static content serving (HTTP only, port 80)
-# Usage: ./nginx_installer.sh [--skip-confirm] [--site DOMAIN] [--uninstall]
+# Usage: ./nginx_installer.sh [--skip-confirm] [--site DOMAIN] [--uninstall] [--reconfigure]
 # Examples:
 #   ./nginx_installer.sh                              # Install only
 #   ./nginx_installer.sh --site images.example.com   # Install + create site
 #   ./nginx_installer.sh --skip-confirm --site images.example.com
 #   ./nginx_installer.sh --uninstall                  # Uninstall Nginx and all configurations
+#   ./nginx_installer.sh --reconfigure                # Re-optimize nginx.conf for new system specs
 # Features:
 #   - Installs Nginx optimized for static content (images, files, etc.)
 #   - Auto-optimizes based on system specs (CPU, RAM)
@@ -29,6 +30,7 @@ NC='\033[0m' # No Color
 SKIP_CONFIRM=false
 SITE_DOMAIN=""
 UNINSTALL_MODE=false
+RECONFIGURE_MODE=false
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -44,9 +46,13 @@ while [[ $# -gt 0 ]]; do
             UNINSTALL_MODE=true
             shift
             ;;
+        --reconfigure)
+            RECONFIGURE_MODE=true
+            shift
+            ;;
         *)
             echo -e "${RED}Unknown argument: $1${NC}"
-            echo "Usage: $0 [--skip-confirm] [--site DOMAIN] [--uninstall]"
+            echo "Usage: $0 [--skip-confirm] [--site DOMAIN] [--uninstall] [--reconfigure]"
             exit 1
             ;;
     esac
@@ -116,6 +122,118 @@ if [[ "$UNINSTALL_MODE" == true ]]; then
     echo
     echo -e "${GREEN}✅ Desinstalación completada${NC}"
     echo -e "${GREEN}✨ Nginx y todas sus configuraciones han sido eliminadas${NC}"
+
+    exit 0
+fi
+
+# Reconfigure mode - only update nginx.conf performance settings
+if [[ "$RECONFIGURE_MODE" == true ]]; then
+    echo -e "${CYAN}╔════════════════════════════════════════════════════╗${NC}"
+    echo -e "${CYAN}║   🔧 Nginx Reconfigure (Performance Only)         ║${NC}"
+    echo -e "${CYAN}╚════════════════════════════════════════════════════╝${NC}"
+    echo
+
+    # Check if nginx is installed
+    if ! command -v nginx &> /dev/null; then
+        echo -e "${RED}❌ Nginx no está instalado${NC}"
+        exit 1
+    fi
+
+    # Detect system specifications
+    echo -e "${CYAN}📊 Detectando nuevas especificaciones del sistema...${NC}"
+    CPU_CORES=$(nproc)
+    TOTAL_RAM_MB=$(free -m | awk '/^Mem:/{print $2}')
+    TOTAL_RAM_GB=$((TOTAL_RAM_MB / 1024))
+
+    echo -e "   ${GREEN}✓${NC} CPU Cores: ${CYAN}${CPU_CORES}${NC}"
+    echo -e "   ${GREEN}✓${NC} RAM: ${CYAN}${TOTAL_RAM_GB}GB${NC} (${TOTAL_RAM_MB}MB)"
+    echo
+
+    # Calculate optimal settings
+    WORKER_PROCESSES=$CPU_CORES
+    WORKER_CONNECTIONS=$((1024 * CPU_CORES))
+    WORKER_RLIMIT_NOFILE=$((WORKER_CONNECTIONS * 2))
+
+    if [[ $TOTAL_RAM_GB -ge 8 ]]; then
+        CLIENT_MAX_BODY_SIZE="100M"
+        CLIENT_BODY_BUFFER_SIZE="128k"
+        KEEPALIVE_TIMEOUT="65"
+    elif [[ $TOTAL_RAM_GB -ge 4 ]]; then
+        CLIENT_MAX_BODY_SIZE="50M"
+        CLIENT_BODY_BUFFER_SIZE="64k"
+        KEEPALIVE_TIMEOUT="60"
+    else
+        CLIENT_MAX_BODY_SIZE="20M"
+        CLIENT_BODY_BUFFER_SIZE="32k"
+        KEEPALIVE_TIMEOUT="30"
+    fi
+
+    echo -e "${CYAN}⚙️  Nueva configuración optimizada:${NC}"
+    echo -e "   worker_processes: ${WORKER_PROCESSES}"
+    echo -e "   worker_connections: ${WORKER_CONNECTIONS}"
+    echo -e "   worker_rlimit_nofile: ${WORKER_RLIMIT_NOFILE}"
+    echo -e "   client_max_body_size: ${CLIENT_MAX_BODY_SIZE}"
+    echo -e "   client_body_buffer_size: ${CLIENT_BODY_BUFFER_SIZE}"
+    echo -e "   keepalive_timeout: ${KEEPALIVE_TIMEOUT}s"
+    echo
+
+    # Confirm reconfiguration
+    echo -e "${YELLOW}⚠️  Solo se modificarán los parámetros de rendimiento en nginx.conf${NC}"
+    echo -e "${YELLOW}   Los sitios, snippets y demás configuraciones se mantendrán intactos${NC}"
+    read -p "¿Desea continuar con la reconfiguración? (s/N) " yn
+    if [[ "$yn" != "s" && "$yn" != "S" ]]; then
+        echo -e "${YELLOW}⏹  Reconfiguración cancelada${NC}"
+        exit 0
+    fi
+    echo
+
+    # Backup current nginx.conf
+    BACKUP_FILE="/etc/nginx/nginx.conf.backup.$(date +%Y%m%d_%H%M%S)"
+    cp /etc/nginx/nginx.conf "$BACKUP_FILE"
+    echo -e "${GREEN}✓${NC} Backup creado: ${BACKUP_FILE}"
+
+    # Update only the performance-related values using sed
+    echo -e "${BLUE}🔧 Actualizando parámetros de rendimiento...${NC}"
+
+    sed -i "s/^worker_processes.*/worker_processes ${WORKER_PROCESSES};/" /etc/nginx/nginx.conf
+    echo -e "   ${GREEN}✓${NC} worker_processes: ${WORKER_PROCESSES}"
+
+    sed -i "s/^worker_rlimit_nofile.*/worker_rlimit_nofile ${WORKER_RLIMIT_NOFILE};/" /etc/nginx/nginx.conf
+    echo -e "   ${GREEN}✓${NC} worker_rlimit_nofile: ${WORKER_RLIMIT_NOFILE}"
+
+    sed -i "s/worker_connections.*/worker_connections ${WORKER_CONNECTIONS};/" /etc/nginx/nginx.conf
+    echo -e "   ${GREEN}✓${NC} worker_connections: ${WORKER_CONNECTIONS}"
+
+    sed -i "s/client_body_buffer_size.*/client_body_buffer_size ${CLIENT_BODY_BUFFER_SIZE};/" /etc/nginx/nginx.conf
+    echo -e "   ${GREEN}✓${NC} client_body_buffer_size: ${CLIENT_BODY_BUFFER_SIZE}"
+
+    sed -i "s/client_max_body_size.*/client_max_body_size ${CLIENT_MAX_BODY_SIZE};/" /etc/nginx/nginx.conf
+    echo -e "   ${GREEN}✓${NC} client_max_body_size: ${CLIENT_MAX_BODY_SIZE}"
+
+    sed -i "s/keepalive_timeout.*/keepalive_timeout ${KEEPALIVE_TIMEOUT};/" /etc/nginx/nginx.conf
+    echo -e "   ${GREEN}✓${NC} keepalive_timeout: ${KEEPALIVE_TIMEOUT}s"
+    echo
+
+    # Test configuration
+    echo -e "${BLUE}🔍 Probando configuración...${NC}"
+    if nginx -t 2>&1 | grep -q "successful"; then
+        echo -e "   ${GREEN}✓${NC} Configuración válida"
+
+        # Reload nginx
+        echo -e "${BLUE}🔄 Recargando Nginx...${NC}"
+        systemctl reload nginx
+        echo -e "   ${GREEN}✓${NC} Nginx recargado"
+        echo
+        echo -e "${GREEN}✅ Reconfiguración completada exitosamente${NC}"
+        echo -e "   Backup disponible en: ${YELLOW}${BACKUP_FILE}${NC}"
+    else
+        echo -e "   ${RED}✗${NC} Error en la configuración"
+        echo -e "${YELLOW}Restaurando backup...${NC}"
+        cp "$BACKUP_FILE" /etc/nginx/nginx.conf
+        echo -e "   ${GREEN}✓${NC} Backup restaurado"
+        nginx -t
+        exit 1
+    fi
 
     exit 0
 fi

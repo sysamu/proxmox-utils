@@ -466,6 +466,9 @@ sudo ./nginx_installer.sh --skip-confirm --site images.example.com
 
 # Uninstall Nginx completely
 sudo ./nginx_installer.sh --uninstall
+
+# Reconfigure for new system specs (after VM resize)
+sudo ./nginx_installer.sh --reconfigure
 ```
 
 **Purpose:** Install and auto-configure Nginx optimized for serving static content (HTTP only, port 80).
@@ -497,6 +500,9 @@ sudo ./nginx_installer.sh --skip-confirm --site images.example.com
 
 # Uninstall Nginx and all configurations
 sudo ./nginx_installer.sh --uninstall
+
+# Reconfigure for new system specs (after VM resize)
+sudo ./nginx_installer.sh --reconfigure
 ```
 
 **Parameters:**
@@ -504,6 +510,7 @@ sudo ./nginx_installer.sh --uninstall
 - `--site DOMAIN` - Automatically create and configure a site for the specified domain
 - `--uninstall` - Uninstall Nginx, remove all configurations, logs, and cache (requires confirmation)
   - **Note:** `/var/www/html/` is preserved and NOT deleted during uninstall
+- `--reconfigure` - Re-optimize nginx.conf for new system specs after VM resize (only updates performance settings, preserves sites and other configs)
 
 **What the script does:**
 
