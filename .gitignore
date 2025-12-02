@@ -28,6 +28,7 @@ Thumbs.db
 .terraform.lock.hcl
 terraform.tfvars
 *.tfvars
+!terraform.tfvars.example
 override.tf
 override.tf.json
 *_override.tf
@@ -43,6 +44,13 @@ crash.*.log
 *.crt
 secrets/
 credentials/
+credentials.json
+.env
+!.env.example
+
+# ProxLB configuration files (may contain tokens)
+terraform/proxlb/ovh/proxlb.yaml
+!terraform/proxlb/ovh/proxlb.yaml.template
 
 # Logs
 *.log

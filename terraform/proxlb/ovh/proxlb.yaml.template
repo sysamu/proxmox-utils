@@ -1,0 +1,82 @@
+# ProxLB Configuration File
+# Documentation: https://github.com/gyptazy/ProxLB
+
+# Proxmox API Configuration
+proxmox_api:
+  hosts: ['${PROXMOX_NODE1_HOST}', '${PROXMOX_NODE2_HOST}', '${PROXMOX_NODE3_HOST}', '${PROXMOX_NODE4_HOST}']
+  user: ${PROXMOX_USER}
+  token_id: ${PROXMOX_TOKEN_NAME}
+  token_secret: ${PROXMOX_NODE1_TOKEN}
+  ssl_verification: False
+  timeout: 10
+  # API Connection retries
+  # retries: 1
+  # wait_time: 1
+
+# Proxmox Cluster Configuration
+proxmox_cluster:
+  # Nodes in maintenance mode (migrations will avoid these nodes)
+  maintenance_nodes: []
+  # Nodes to completely ignore
+  ignore_nodes: []
+  # Allow overprovisioning of resources
+  overprovisioning: True
+
+# Balancing Configuration
+balancing:
+  # Enable automatic balancing
+  enable: True
+  # Enforce VM/CT affinity rules
+  enforce_affinity: False
+  # Enable parallel migrations (multiple at once)
+  parallel: False
+  # Use live migration (no downtime)
+  live: True
+  # Allow migration of VMs with local disks
+  with_local_disks: True
+  # Preserve conntrack state during migration
+  with_conntrack_state: True
+  # Types of guests to balance: vm (VMs), ct (containers), or both
+  balance_types: ['vm', 'ct']
+  # Maximum time in seconds to validate a migration job
+  max_job_validation: 1800
+  # Memory usage threshold percentage to trigger rebalancing
+  memory_threshold: 75
+  # Balanciness factor (1-10): higher = more aggressive balancing
+  # 1 = conservative (large imbalances only)
+  # 5 = moderate (recommended for most clusters)
+  # 10 = aggressive (balance even small differences)
+  balanciness: 5
+  # Balancing method: memory, cpu, or psi (Pressure Stall Information - requires PVE >= 9)
+  method: memory
+  # Balancing mode: used (actual usage) or psi (pressure metrics)
+  mode: used
+
+  # Pool-based balancing rules (optional)
+  # Define affinity/anti-affinity rules for specific resource pools
+  pools: {}
+  #   dev:
+  #     type: affinity
+  #   production:
+  #     type: anti-affinity
+  #     pin:
+  #       - ${PROXMOX_NODE1_HOST}
+  #       - ${PROXMOX_NODE2_HOST}
+
+# Service Configuration
+service:
+  # Run as daemon
+  daemon: True
+  # Scheduling configuration
+  schedule:
+    # Run balancing check every X hours/minutes
+    interval: 12
+    format: hours
+  # Delay configuration
+  delay:
+    # Enable delay before performing migrations
+    enable: False
+    time: 1
+    format: hours
+  # Logging level: DEBUG, INFO, WARNING, ERROR
+  log_level: INFO

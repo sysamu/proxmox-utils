@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  proxlb:
+    image: cr.gyptazy.com/proxlb/proxlb:latest
+    container_name: proxlb
+    restart: unless-stopped
+    volumes:
+      - ./proxlb.yaml:/etc/proxlb/proxlb.yaml:ro
+      - proxlb-data:/var/lib/proxlb
+    # Uncomment ports if you need to expose the API
+    # ports:
+    #   - "8000:8000"
+    env_file:
+      - .env  # Load environment variables from .env file
+    environment:
+      - TZ=Europe/Madrid
+    networks:
+      - proxlb-net
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  proxlb-data:
+    driver: local
+
+networks:
+  proxlb-net:
+    driver: bridge

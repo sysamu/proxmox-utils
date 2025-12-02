@@ -1,0 +1,80 @@
+# OVH API Credentials
+# Get them from: https://www.ovh.com/auth/api/createToken
+ovh_endpoint           = "ovh-eu"
+ovh_application_key    = "your_application_key"
+ovh_application_secret = "your_application_secret"
+ovh_consumer_key       = "your_consumer_key"
+
+# OVH Public Cloud Project (EXISTING PROJECT)
+# IMPORTANT: This is your EXISTING project ID (UUID format like: 1a2b3c4d5e6f...)
+# Find it: OVH API /cloud/project or Control Panel → Public Cloud → Project Settings
+ovh_service_name = "1a2b3c4d5e6f7g8h9i0j"  # Your existing project ID
+
+# OpenStack credentials (for your existing project)
+openstack_user_name = "your_openstack_username"
+openstack_password  = "your_openstack_password"
+
+# Resource Naming
+# This is just a PREFIX for resources created by Terraform (e.g., proxlb-instance, proxlb-secgroup)
+# You can change this to any name you want
+project_name = "proxlb"
+
+# Deployment Configuration
+region = "SBG5"  # Options: GRA11, SBG5, DE1 (Frankfurt), UK1 (London), WAW1 (Warsaw)
+flavor = "s1-2"  # Options: s1-2 (1 vCore, 2GB), s1-4 (2 vCore, 4GB), b2-7 (2 vCore, 7GB)
+
+# OS Image
+os_image_name = "Debian 13"  # or "Ubuntu 24.04"
+
+# SSH Configuration
+# Option 1: Use existing SSH key from OVH (RECOMMENDED - no need to upload again)
+use_existing_ssh_key   = true
+existing_ssh_key_name  = "my-ovh-ssh-key"  # Name of your existing SSH key in OVH
+
+# Option 2: Upload new SSH key from local file (set use_existing_ssh_key = false)
+# use_existing_ssh_key = false
+# ssh_public_key_path  = "~/.ssh/id_rsa.pub"
+
+# Security
+allowed_ssh_cidr = "0.0.0.0/0"  # Change to your IP for better security (e.g., "203.0.113.0/32")
+allowed_api_cidr = "0.0.0.0/0"  # Change to restrict API access
+
+# ProxLB API
+enable_proxlb_api = false  # Set to true if you need API access
+
+# Instance Tags
+instance_tags = ["proxlb", "load-balancer", "production"]
+
+# vRack Configuration (for private network with Proxmox dedicated servers)
+# IMPORTANT: vRack and private network must already exist in OVH
+enable_vrack        = true
+vrack_id            = ""                  # Optional: vRack ID (e.g., "pn-xxxxx"), leave empty if not managing via Terraform
+vrack_network_name  = "my-vrack-network"  # Name of your EXISTING vRack private network in the selected region
+vrack_dhcp          = true                # Use DHCP for automatic IP assignment
+
+# DNS Configuration (for internal Proxmox name resolution)
+dns_server1 = "192.168.1.1"        # Your internal DNS server
+dns_server2 = ""                   # Secondary DNS (leave empty if only using one)
+dns_domain  = "yourdomain.local"   # Your internal domain
+dns_search  = "yourdomain.local"   # DNS search domain
+
+# Proxmox Cluster Configuration
+# IMPORTANT: Create API tokens in Proxmox first: Datacenter → Permissions → API Tokens
+proxmox_user       = "root@pam"
+proxmox_token_name = "proxlb"
+
+proxmox_nodes = [
+  {
+    host  = "https://proxmox1.yourdomain.local:8006"
+    token = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"  # API token secret for node 1
+  },
+  {
+    host  = "https://proxmox2.yourdomain.local:8006"
+    token = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"  # API token secret for node 2
+  },
+  # Add more nodes as needed
+  # {
+  #   host  = "https://proxmox3.yourdomain.local:8006"
+  #   token = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+  # },
+]
