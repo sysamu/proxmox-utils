@@ -24,6 +24,100 @@ Replace `SCRIPT_NAME.sh` with the desired script from the list below.
 
 ## Available Scripts
 
+### 📦 `backup_files_before_upgrade.sh`
+
+**Quick install:**
+```bash
+# Download directly to your Proxmox node
+wget -O /tmp/backup_files_before_upgrade.sh https://raw.githubusercontent.com/sysamu/proxmox-utils/main/scripts/backup_files_before_upgrade.sh
+chmod +x /tmp/backup_files_before_upgrade.sh
+
+# Or using curl
+curl -o /tmp/backup_files_before_upgrade.sh https://raw.githubusercontent.com/sysamu/proxmox-utils/main/scripts/backup_files_before_upgrade.sh
+chmod +x /tmp/backup_files_before_upgrade.sh
+```
+
+**Purpose:** Create a comprehensive backup of critical Proxmox configuration files before system upgrades.
+
+**Use Case:** Essential backup tool before performing Proxmox upgrades, cluster changes, or major configuration modifications.
+
+**Features:**
+- 🎨 Visual and colorful terminal output with emojis
+- 📦 Backs up essential configuration files:
+  - `/etc/pve` - Cluster configuration
+  - `/etc/pve/firewall` - Firewall rules
+  - `/etc/pve/nodes/*/host.fw` - Host-specific firewall
+  - `/etc/passwd` - User accounts
+  - `/etc/network/interfaces` - Network configuration
+  - `/etc/resolv.conf` - DNS configuration
+  - `/etc/hosts` - Host mappings
+  - `/etc/fstab` - Filesystem mounts
+- 🔒 Preserves file permissions, ownership, ACLs, and extended attributes
+- 📝 Automatic filename with hostname and timestamp
+- 📊 Displays backup size and location
+- 💡 Provides ready-to-use SCP command for downloading
+
+**Usage:**
+```bash
+# Run on your Proxmox node
+sudo /tmp/backup_files_before_upgrade.sh
+```
+
+**Download the backup to your local machine:**
+```bash
+# The script provides the exact command after completion
+scp root@YOUR_PROXMOX_IP:/root/proxmox_etc_backup_*.tar.gz .
+```
+
+**Example output:**
+```
+═══════════════════════════════════════════════════════════
+📦 Proxmox Configuration Backup Tool
+═══════════════════════════════════════════════════════════
+
+ℹ Backup file: proxmox_etc_backup_pve-node1_2025-12-16_14-30.tar.gz
+
+ℹ Files and directories to backup:
+  • /etc/pve
+  • /etc/pve/firewall
+  • /etc/pve/nodes/*/host.fw
+  • /etc/passwd
+  • /etc/network/interfaces
+  • /etc/resolv.conf
+  • /etc/hosts
+  • /etc/fstab
+
+✓ Backup completed successfully!
+
+ℹ Backup details:
+  • File: proxmox_etc_backup_pve-node1_2025-12-16_14-30.tar.gz
+  • Size: 2.3M
+  • Location: /root/proxmox_etc_backup_pve-node1_2025-12-16_14-30.tar.gz
+
+═══════════════════════════════════════════════════════════
+✓ Backup ready
+═══════════════════════════════════════════════════════════
+
+⚠ Remember to download this backup to a safe location!
+ℹ You can use: scp root@192.168.1.100:/root/proxmox_etc_backup_pve-node1_2025-12-16_14-30.tar.gz .
+```
+
+**When to use:**
+- ⬆️ Before major Proxmox VE upgrades
+- 🔧 Before making significant configuration changes
+- 📅 As part of regular backup routines
+- 🖥️ Before cluster modifications
+- 🌐 Prior to network configuration changes
+- 🔥 Before firewall rule changes
+
+**Important notes:**
+- ⚠️ Requires root privileges to access all configuration files
+- 💾 Store backups in a safe location outside the Proxmox node
+- 🔄 Create backups before each major change
+- 📦 Backup file includes timestamp for version control
+
+---
+
 ### 1. `zfs-pool-r0.sh`
 
 **Quick install:**
