@@ -21,6 +21,7 @@ Provide reusable scripts that facilitate:
 ```
 proxmox-utils/
 ├── scripts/           # Automation scripts for Proxmox administration
+│   ├── ESP_sync.sh
 │   ├── backup_files_before_upgrade.sh
 │   ├── proxmox-drop-cache.sh
 │   ├── zfs-pool-r0.sh
@@ -49,6 +50,7 @@ sudo ./SCRIPT_NAME.sh
 ## Available Tools
 
 ### System Administration Scripts
+- **ESP Sync** - EFI System Partition synchronization for RAID1 boot configurations
 - **Backup Tools** - Configuration backup before upgrades
 - **Cache Management** - ZFS ARC and system cache optimization
 - **Storage Configuration** - ZFS pool setup and management

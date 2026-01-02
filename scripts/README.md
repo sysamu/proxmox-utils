@@ -24,6 +24,119 @@ Replace `SCRIPT_NAME.sh` with the desired script from the list below.
 
 ## Available Scripts
 
+### 🔄 `ESP_sync.sh`
+
+**Quick install:**
+```bash
+# Download and inspect (recommended - review before running)
+wget https://raw.githubusercontent.com/sysamu/proxmox-utils/main/scripts/ESP_sync.sh
+chmod +x ESP_sync.sh
+
+# Review the script, then execute
+sudo ./ESP_sync.sh
+```
+
+**Purpose:** Synchronize EFI System Partition (ESP) across multiple RAID1 disks and optionally reinstall GRUB bootloader.
+
+**Use Case:** Critical tool for Proxmox upgrades on OVH dedicated servers with RAID1 boot configuration (e.g., PVE 7 → PVE 8). During major upgrades, the ESP partitions may become out of sync, causing boot failures where rEFInd shows empty entries and the server enters a boot loop.
+
+**Problem it solves:**
+
+When upgrading Proxmox on OVH servers with RAID1 boot disks:
+1. The upgrade updates `/boot/efi` on the primary ESP partition
+2. Secondary ESP partition(s) are NOT automatically synchronized
+3. On reboot, rEFInd may boot from the outdated ESP partition
+4. The default boot entry is empty → server enters boot loop
+5. Manual IPMI intervention is required to select the correct rEFInd entry
+6. After booting with the correct entry, this script synchronizes all ESP partitions
+
+**Features:**
+- 🔍 Auto-detects all EFI System Partitions (labeled `EFI_SYSPART`)
+- 🎯 Identifies the currently mounted primary ESP at `/boot/efi`
+- ⚠️ Double confirmation system with clear warnings
+- 📋 First confirmation: Verify you're syncing the correct ESP with the right kernel/GRUB configuration
+- 🔁 Syncs primary ESP to all other EFI partitions using `rsync`
+- 🛠️ Optional GRUB reinstallation and update (second confirmation)
+- 🔐 Safety checks and clear warning messages
+
+**Usage:**
+```bash
+chmod +x ESP_sync.sh
+sudo ./ESP_sync.sh
+```
+
+**What the script does:**
+
+**Step 1: ESP Synchronization**
+1. Detects the main ESP partition mounted at `/boot/efi`
+2. Shows clear warning about verifying:
+   - Correct kernel is running
+   - Correct GRUB/rEFInd configuration in `/boot/efi`
+   - This is the ESP you want to replicate
+3. Requires typing `yes` to proceed
+4. Uses `rsync -ax` to sync to all other `EFI_SYSPART` partitions
+
+**Step 2: GRUB Reinstallation (Optional)**
+1. After ESP sync, offers optional GRUB reinstallation
+2. Warns this is an advanced operation
+3. Requires typing `yes` to proceed
+4. Executes:
+   - `apt install --reinstall grub-efi-amd64`
+   - `grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=proxmox --recheck`
+   - `update-grub`
+
+**Typical recovery scenario (OVH Proxmox upgrade):**
+
+```bash
+# 1. Server fails to boot after Proxmox upgrade
+# 2. Connect via IPMI/KVM console
+# 3. At rEFInd boot menu, manually select the working boot entry
+# 4. Server boots successfully with upgraded Proxmox
+# 5. SSH into the server and run this script:
+
+wget https://raw.githubusercontent.com/sysamu/proxmox-utils/main/scripts/ESP_sync.sh
+chmod +x ESP_sync.sh
+sudo ./ESP_sync.sh
+
+# 6. Confirm ESP synchronization (type: yes)
+# 7. Optionally reinstall GRUB (type: yes)
+# 8. Reboot - all ESP partitions now have identical boot configuration
+```
+
+**Important Notes:**
+- ⚠️ **Only run this AFTER** you've successfully booted with the correct kernel
+- ⚠️ **Verify** that `/boot/efi` contains the correct GRUB/rEFInd configuration before syncing
+- ⚠️ **DO NOT** run this if you're uncertain about which ESP is correct
+- 🔐 Requires root privileges
+- 💾 Works with any number of `EFI_SYSPART` labeled partitions
+- 🎯 Automatically skips the primary partition during sync (prevents self-sync)
+- 📝 Default behavior is NO for both confirmations (safety first)
+
+**When to use:**
+- ⬆️ After major Proxmox VE upgrades (especially on OVH servers)
+- 🔄 When GRUB/rEFInd configuration changes on one ESP but not others
+- 🛠️ After manually fixing boot issues via IPMI
+- 💿 When one ESP partition has been restored from backup
+- 🔧 Before critical reboots to ensure boot redundancy
+
+**Technical details:**
+
+The script uses:
+- `findmnt -n -o SOURCE /boot/efi` - Identifies the currently mounted ESP
+- `blkid -o device -t LABEL=EFI_SYSPART` - Finds all EFI system partitions
+- `rsync -ax` - Archive mode with device/special files, no crossing filesystems
+- Temporary mount point: `/var/lib/grub/esp`
+
+**Safety mechanisms:**
+1. Explicit confirmation required (type `yes`, not just `y`)
+2. Clear warnings before each operation
+3. Shows which partition is the source
+4. Automatically skips self-sync
+5. Second confirmation for GRUB operations
+6. Graceful cancellation on "NO"
+
+---
+
 ### 📦 `backup_files_before_upgrade.sh`
 
 **Quick install:**
