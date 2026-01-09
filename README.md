@@ -29,6 +29,7 @@ proxmox-utils/
 │   ├── apache_optimizer.sh
 │   ├── php_installer.sh
 │   ├── nginx_installer.sh
+│   ├── sshd_hardening.sh
 │   └── README.md     # Detailed documentation for all scripts
 │
 └── terraform/        # Infrastructure as Code deployments
@@ -54,6 +55,7 @@ sudo ./SCRIPT_NAME.sh
 - **Backup Tools** - Configuration backup before upgrades
 - **Cache Management** - ZFS ARC and system cache optimization
 - **Storage Configuration** - ZFS pool setup and management
+- **SSH Hardening** - Automated SSH security configuration with key-based authentication
 
 ### Web Server Tools
 - **Apache Optimizer** - Auto-configuration for Apache + PHP-FPM

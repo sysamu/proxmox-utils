@@ -651,7 +651,143 @@ Just copy/paste that into ChatGPT and it will tell you if those modules:
 
 ---
 
-### 5. `nginx_installer.sh`
+### 5. `sshd_hardening.sh`
+
+**Quick install:**
+```bash
+# Download and review (recommended - this modifies SSH access)
+wget https://raw.githubusercontent.com/sysamu/proxmox-utils/main/scripts/sshd_hardening.sh
+chmod +x sshd_hardening.sh
+
+# Review the script thoroughly, then execute
+sudo ./sshd_hardening.sh
+```
+
+**Purpose:** Automated SSH hardening with idempotent configuration for secure access control.
+
+**Use Case:** Lock down SSH access on Proxmox nodes or any Linux server by disabling password authentication and restricting access to specific users from internal networks only.
+
+**Features:**
+- Idempotent: Checks current configuration before making changes
+- Disables root login with password (allows key-based only)
+- Disables password authentication globally
+- Creates user-specific access rules with network restrictions
+- Validates configuration before applying (prevents lockouts)
+- Interactive prompts for user and network specification
+- Automatic sshd service restart after changes
+
+**Usage:**
+```bash
+chmod +x sshd_hardening.sh
+sudo ./sshd_hardening.sh
+```
+
+**What the script does:**
+
+**Step 1: Input Collection**
+1. Prompts for internal SSH user (e.g., `admin`, `deploy`)
+2. Prompts for allowed network in CIDR notation (e.g., `192.168.1.0/24`)
+3. Validates that both values are provided
+
+**Step 2: Configuration Check**
+1. Verifies if `PermitRootLogin prohibit-password` is set
+2. Verifies if `PasswordAuthentication no` is set
+3. Checks if the specific `Match User` block already exists
+4. If all settings are correct, exits without changes
+
+**Step 3: Apply Hardening (if needed)**
+1. Creates temporary copy of `/etc/ssh/sshd_config`
+2. Removes any existing `PermitRootLogin` directives
+3. Removes any existing `PasswordAuthentication` directives
+4. Adds `PermitRootLogin prohibit-password`
+5. Adds `PasswordAuthentication no`
+6. Removes any previous `Match User` block for the specified user
+7. Adds new `Match User` block with network restriction:
+   ```
+   Match User <username>
+       AllowUsers <username>@<network>
+   ```
+
+**Step 4: Validation and Deployment**
+1. Tests configuration with `sshd -t` before applying
+2. If valid: applies changes and restarts sshd
+3. If invalid: aborts without making changes (prevents lockout)
+
+**Example session:**
+```bash
+sudo ./sshd_hardening.sh
+
+Usuario SSH interno (ej: usuario): admin
+Red interna permitida (CIDR, ej: 192.168.1.0/24): 10.0.0.0/24
+
+Configuración incompleta o incorrecta. Aplicando estado deseado...
+Cambios aplicados y sshd reiniciado correctamente.
+```
+
+**Configuration applied:**
+```
+# Global settings
+PermitRootLogin prohibit-password
+PasswordAuthentication no
+
+# User-specific rules
+Match User admin
+    AllowUsers admin@10.0.0.0/24
+```
+
+**Important notes:**
+- **CRITICAL:** Ensure you have SSH key-based authentication configured BEFORE running this script
+- **CRITICAL:** Test SSH access from another session before closing your current one
+- The script disables password authentication entirely
+- Root login is restricted to key-based authentication only
+- Only the specified user from the specified network can connect
+- Idempotent: Safe to run multiple times with same or different parameters
+- Always validates configuration before applying to prevent SSH lockout
+
+**When to use:**
+- After initial Proxmox installation
+- When securing new VM or LXC containers
+- As part of server hardening procedures
+- Before exposing servers to untrusted networks
+- When implementing zero-trust network policies
+
+**Safety mechanisms:**
+1. Configuration validation before applying (`sshd -t`)
+2. Uses temporary file for changes
+3. Automatic cleanup on exit
+4. Clear error messages if validation fails
+5. Idempotent behavior (checks before modifying)
+6. No changes if already correctly configured
+
+**Technical details:**
+- Uses `grep -Eq` for regex pattern matching
+- Uses `awk` for complex multi-line block detection
+- Preserves existing sshd_config structure
+- Removes duplicate/conflicting directives automatically
+- Appends new configuration at the end of file
+
+**Pre-flight checklist:**
+1. Ensure SSH key authentication is already configured
+2. Test key-based login works: `ssh -i ~/.ssh/id_rsa user@server`
+3. Verify you have another way to access the server (console, IPMI, KVM)
+4. Keep current SSH session open until new connection is verified
+5. Have the correct network CIDR ready (check with `ip a` or `ifconfig`)
+
+**Recovery from lockout:**
+If you get locked out, use console access (IPMI/KVM) to:
+```bash
+# Restore original configuration
+sudo cp /etc/ssh/sshd_config.bak /etc/ssh/sshd_config
+sudo systemctl restart sshd
+
+# Or temporarily enable password auth
+sudo sed -i 's/^PasswordAuthentication no/PasswordAuthentication yes/' /etc/ssh/sshd_config
+sudo systemctl restart sshd
+```
+
+---
+
+### 6. `nginx_installer.sh`
 
 **Quick install:**
 ```bash
