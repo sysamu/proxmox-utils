@@ -23,7 +23,9 @@ has_permit_root=$(grep -Eq '^\s*PermitRootLogin\s+prohibit-password\s*$' "$SSHD_
 has_pass_auth=$(grep -Eq '^\s*PasswordAuthentication\s+no\s*$' "$SSHD_CONFIG" && echo yes || echo no)
 
 has_match_block=$(awk -v user="$SSH_USER" -v net="$INTERNAL_NET" '
-    $1=="Match" && $2=="User" && $3==user && $4=="Address" && $5==net {found=1}
+    $1=="Match" && $2=="User" && $3==user {in_match=1; next}
+    in_match && $1=="AllowUsers" && $2==user"@"net {found=1}
+    in_match && $1=="Match" {in_match=0}
     END {exit found ? 0 : 1}
 ' "$SSHD_CONFIG" && echo yes || echo no)
 
@@ -57,7 +59,8 @@ mv "${TMP_FILE}.new" "$TMP_FILE"
 # Añadir bloque correcto
 cat <<EOF >> "$TMP_FILE"
 
-Match User $SSH_USER Address $INTERNAL_NET
+Match User $SSH_USER
+    AllowUsers $SSH_USER@$INTERNAL_NET
 EOF
 
 # ===== VALIDAR Y APLICAR =====
