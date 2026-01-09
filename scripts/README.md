@@ -704,8 +704,7 @@ sudo ./sshd_hardening.sh
 6. Removes any previous `Match User` block for the specified user
 7. Adds new `Match User` block with network restriction:
    ```
-   Match User <username>
-       AllowUsers <username>@<network>
+   Match User <username> Address <network>
    ```
 
 **Step 4: Validation and Deployment**
@@ -731,8 +730,7 @@ PermitRootLogin prohibit-password
 PasswordAuthentication no
 
 # User-specific rules
-Match User admin
-    AllowUsers admin@10.0.0.0/24
+Match User admin Address 10.0.0.0/24
 ```
 
 **Important notes:**
