@@ -63,7 +63,14 @@ EOF
 # ===== VALIDAR Y APLICAR =====
 if sshd -t -f "$TMP_FILE"; then
     cp "$TMP_FILE" "$SSHD_CONFIG"
-    systemctl restart sshd
+
+    # Detectar servicio SSH correcto según sistema
+    if systemctl list-units --type=service --all | grep -q "ssh.service"; then
+        systemctl restart ssh
+    else
+        systemctl restart sshd
+    fi
+
     echo "Cambios aplicados y sshd reiniciado correctamente."
 else
     echo "ERROR: sshd_config inválido. No se aplican cambios." >&2
