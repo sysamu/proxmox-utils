@@ -1,0 +1,120 @@
+# OVH API Credentials
+# Get them from: https://www.ovh.com/auth/api/createToken
+ovh_endpoint           = "ovh-eu"
+ovh_application_key    = "your_application_key"
+ovh_application_secret = "your_application_secret"
+ovh_consumer_key       = "your_consumer_key"
+
+# OVH Public Cloud Project (EXISTING PROJECT)
+# IMPORTANT: This is your EXISTING project ID (UUID format like: 1a2b3c4d5e6f...)
+# Find it: OVH API /cloud/project or Control Panel → Public Cloud → Project Settings
+ovh_service_name = "1a2b3c4d5e6f7g8h9i0j"  # Your existing project ID
+
+# OpenStack credentials (for your existing project)
+openstack_user_name = "your_openstack_username"
+openstack_password  = "your_openstack_password"
+
+# Resource Naming
+# This is just a PREFIX for resources created by Terraform (e.g., pulse-instance, pulse-secgroup)
+project_name = "pulse"
+
+# Deployment Configuration
+region = "SBG5"  # Options: GRA11, SBG5, DE1 (Frankfurt), UK1 (London), WAW1 (Warsaw)
+flavor = "s1-2"  # Options: s1-2 (1 vCore, 2GB), s1-4 (2 vCore, 4GB), b2-7 (2 vCore, 7GB)
+
+# OS Image
+os_image_name = "Debian 13"  # or "Ubuntu 24.04"
+
+# SSH Configuration
+# Option 1: Use existing SSH keys from OVH (RECOMMENDED)
+# Go to: OVH Manager → Public Cloud → Your Project → SSH Keys
+# Add your SSH keys there and use the exact names here
+use_existing_ssh_keys   = true
+existing_ssh_key_names  = ["my-ovh-key-1", "my-ovh-key-2"]  # Replace with your actual key names
+
+# How it works:
+# - First key in the list is assigned during instance creation
+# - Additional keys are automatically added to ~/.ssh/authorized_keys via cloud-init
+# - All keys will work for SSH access
+
+# Option 2: Upload new SSH keys from local files (set use_existing_ssh_keys = false)
+# use_existing_ssh_keys = false
+# ssh_public_key_paths  = ["~/.ssh/id_rsa.pub", "~/.ssh/id_ed25519.pub"]
+
+# SSH Access Security
+# SSH is automatically configured to ONLY work from your LAN network (192.168.32.0/19)
+# This is much more secure than exposing SSH to the public internet
+# You'll need to be connected to your LAN network to SSH into the instance
+
+# Pulse Web Interface Access
+# SECURITY BEST PRACTICE: Access Pulse ONLY via private vRack network
+# Set enable_pulse_web_public = false (default) to disable public internet access
+# Access Pulse at: http://<private_ip>:7655 from your vRack network
+
+enable_pulse_web_public = false  # Disable public access (RECOMMENDED for security)
+pulse_web_port          = 7655   # Default Pulse web interface port
+
+# Emergency/VPN Access (optional)
+# If you need to access Pulse from specific public IPs (e.g., your VPN exit IP),
+# enable public access and whitelist specific IPs:
+# enable_pulse_web_public = true
+# pulse_web_whitelist_ips = [
+#   "203.0.113.50",  # Your VPN exit IP
+#   "198.51.100.25", # Another trusted IP
+# ]
+
+# Instance Tags
+instance_tags = ["pulse", "monitoring", "proxmox"]
+
+# vRack Configuration (for private network with Proxmox dedicated servers)
+# IMPORTANT: vRack and private networks must already exist in OVH
+enable_vrack = true
+vrack_id     = ""  # Optional: vRack ID (e.g., "pn-xxxxx"), leave empty if not managing via Terraform
+
+# Private Networks Configuration
+# You can attach multiple private networks to the Pulse instance
+# Example use case:
+#   - Network 1: Your LAN for accessing Pulse GUI (192.168.32.0/19)
+#   - Network 2: Proxmox monitoring network with VLAN (10.200.10.0/24 VLAN 100)
+
+private_networks = [
+  {
+    network_name = "my-lan-network"       # Your LAN network for GUI access
+    vlan_id      = null                   # No VLAN tag
+    subnet       = "192.168.32.0/19"      # Your LAN subnet
+    use_dhcp     = true                   # Use DHCP
+    fixed_ip     = null                   # Leave null for DHCP
+  },
+  {
+    network_name = "proxmox-monitoring"   # Proxmox monitoring network
+    vlan_id      = 100                    # VLAN tag
+    subnet       = "10.200.10.0/24"       # Proxmox network subnet
+    use_dhcp     = true                   # Use DHCP
+    fixed_ip     = null                   # Or specify: "10.200.10.50"
+  },
+]
+
+# DNS Configuration (for internal Proxmox name resolution)
+# Pulse needs to resolve Proxmox hostnames via your internal DNS
+# IMPORTANT: Use the DNS server accessible from the monitoring network (10.200.10.0/24)
+dns_server1 = "10.200.10.1"        # Your DNS server on monitoring network (REQUIRED for auto-discovery)
+dns_server2 = ""                   # Secondary DNS (leave empty if only using one)
+dns_domain  = "yourdomain.local"   # Your internal domain
+dns_search  = "yourdomain.local"   # DNS search domain
+
+# Proxmox Nodes Information (Optional - for reference only)
+# Pulse will auto-discover nodes on your network
+# This list is just for documentation in the .env file
+# Your Proxmox nodes should be on the monitoring network (10.200.10.10-13)
+proxmox_nodes_info = [
+  "proxmox1.yourdomain.local",  # 10.200.10.10
+  "proxmox2.yourdomain.local",  # 10.200.10.11
+  "proxmox3.yourdomain.local",  # 10.200.10.12
+  "proxmox4.yourdomain.local",  # 10.200.10.13
+]
+
+# Notes:
+# - Pulse uses auto-discovery to find Proxmox nodes on your network
+# - You can also manually add nodes through the Pulse web interface at http://<your-ip>:7655
+# - Ensure DNS is properly configured so Pulse can resolve Proxmox hostnames
+# - Configure API tokens and authentication directly in the Pulse web interface

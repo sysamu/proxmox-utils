@@ -1,0 +1,209 @@
+#cloud-config
+
+# System update and package installation
+package_update: true
+package_upgrade: true
+
+packages:
+  - curl
+  - wget
+  - git
+  - vim
+  - htop
+  - net-tools
+  - ca-certificates
+  - gnupg
+  - lsb-release
+
+# Docker group configuration
+groups:
+  - docker
+
+system_info:
+  default_user:
+    groups: [docker, sudo]
+
+# Write docker-compose.yml
+write_files:
+  - path: /opt/pulse/docker-compose.yml
+    permissions: '0644'
+    encoding: b64
+    content: ${docker_compose_config}
+
+  - path: /opt/pulse/.env
+    permissions: '0600'
+    owner: debian:debian
+    content: |
+      # Pulse Environment Variables
+      # Edit this file with your actual values
+
+      # DNS Configuration
+      # If you only use one DNS server, leave DNS_SERVER2 empty
+      DNS_SERVER1=${dns_server1}
+      DNS_SERVER2=${dns_server2}
+      DNS_DOMAIN=${dns_domain}
+      DNS_SEARCH=${dns_search}
+
+      # Proxmox Nodes Information (for reference)
+      # Pulse will auto-discover nodes or you can add them through the web interface
+      # ${proxmox_nodes_env}
+
+  - path: /tmp/additional_ssh_keys.txt
+    permissions: '0600'
+    content: |
+      ${additional_ssh_keys}
+
+  - path: /opt/pulse/configure-dns.sh
+    permissions: '0755'
+    content: |
+      #!/bin/bash
+      # Configure DNS using traditional /etc/resolv.conf
+      source /opt/pulse/.env
+
+      echo "Disabling systemd-resolved and configuring traditional DNS..."
+
+      # Stop and disable systemd-resolved
+      systemctl stop systemd-resolved
+      systemctl disable systemd-resolved
+
+      # Remove the systemd-resolved stub resolver
+      rm -f /etc/resolv.conf
+
+      # Create a new /etc/resolv.conf with our DNS settings
+      cat > /etc/resolv.conf <<DNSEOF
+      # DNS Configuration for Pulse
+      # Internal DNS server for Proxmox name resolution
+      nameserver $${DNS_SERVER1}
+      DNSEOF
+
+      # Add second DNS server only if configured
+      if [ -n "$${DNS_SERVER2}" ]; then
+        echo "nameserver $${DNS_SERVER2}" >> /etc/resolv.conf
+      fi
+
+      # Add search and domain
+      cat >> /etc/resolv.conf <<DNSEOF
+      search $${DNS_SEARCH}
+      domain $${DNS_DOMAIN}
+      DNSEOF
+
+      # Make resolv.conf immutable to prevent DHCP from overwriting it
+      chattr +i /etc/resolv.conf
+
+      echo "DNS configured successfully!"
+      echo "Content of /etc/resolv.conf:"
+      cat /etc/resolv.conf
+      echo ""
+      echo "Testing DNS resolution with first Proxmox node..."
+      if [ -n "$${PROXMOX_NODE1_HOST}" ]; then
+        nslookup $${PROXMOX_NODE1_HOST} || echo "Warning: DNS test failed for $${PROXMOX_NODE1_HOST}"
+      fi
+
+  - path: /opt/pulse/start.sh
+    permissions: '0755'
+    content: |
+      #!/bin/bash
+      cd /opt/pulse
+      docker compose pull
+      docker compose up -d
+      echo "Pulse started successfully"
+
+  - path: /opt/pulse/stop.sh
+    permissions: '0755'
+    content: |
+      #!/bin/bash
+      cd /opt/pulse
+      docker compose down
+      echo "Pulse stopped successfully"
+
+  - path: /opt/pulse/restart.sh
+    permissions: '0755'
+    content: |
+      #!/bin/bash
+      cd /opt/pulse
+      docker compose restart
+      echo "Pulse restarted successfully"
+
+  - path: /opt/pulse/logs.sh
+    permissions: '0755'
+    content: |
+      #!/bin/bash
+      cd /opt/pulse
+      docker compose logs -f
+
+  - path: /etc/systemd/system/pulse.service
+    permissions: '0644'
+    content: |
+      [Unit]
+      Description=Pulse Monitoring Service
+      Requires=docker.service
+      After=docker.service
+
+      [Service]
+      Type=oneshot
+      RemainAfterExit=yes
+      WorkingDirectory=/opt/pulse
+      ExecStart=/usr/bin/docker compose up -d
+      ExecStop=/usr/bin/docker compose down
+      TimeoutStartSec=0
+
+      [Install]
+      WantedBy=multi-user.target
+
+# Run commands after system is configured
+runcmd:
+  # Add additional SSH keys to authorized_keys
+  - |
+    if [ -s /tmp/additional_ssh_keys.txt ]; then
+      grep -v '^[[:space:]]*$' /tmp/additional_ssh_keys.txt | grep -v '^[[:space:]]*-' | while IFS= read -r key; do
+        if [ -n "$key" ]; then
+          echo "$key" >> /home/debian/.ssh/authorized_keys
+        fi
+      done
+      rm -f /tmp/additional_ssh_keys.txt
+    fi
+  # Install Docker from official repository
+  - mkdir -p /etc/apt/keyrings
+  - curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+  - chmod a+r /etc/apt/keyrings/docker.gpg
+  - echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
+  - apt-get update
+  - apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+  - systemctl enable docker
+  - systemctl start docker
+  - apt-get install -y gettext-base  # Install envsubst for template substitution
+  - mkdir -p /var/log/pulse
+  - usermod -aG docker debian
+  - chown -R debian:debian /opt/pulse
+  - chmod +x /opt/pulse/*.sh
+  - /opt/pulse/configure-dns.sh  # Configure DNS from .env file
+  - sleep 5
+  - cd /opt/pulse && docker compose pull
+  - systemctl daemon-reload
+  - systemctl enable pulse.service
+  - systemctl start pulse.service
+  - echo "Pulse installation completed" > /var/log/cloud-init-complete.log
+
+# Set timezone
+timezone: Europe/Madrid
+
+# Final message
+final_message: |
+  Pulse instance is ready!
+
+  Access Pulse Dashboard: http://<your-ip>:7655
+
+  Docker Compose location: /opt/pulse/
+  Data directory: /opt/pulse/pulse-data (persistent storage)
+
+  Useful commands:
+    - Start Pulse: /opt/pulse/start.sh or systemctl start pulse
+    - Stop Pulse: /opt/pulse/stop.sh or systemctl stop pulse
+    - Restart Pulse: /opt/pulse/restart.sh or systemctl restart pulse
+    - View logs: /opt/pulse/logs.sh or docker logs pulse
+    - Check status: systemctl status pulse
+
+  Pulse will auto-discover Proxmox nodes on your network.
+  You can also add nodes manually through the web interface.
+
+  System initialization completed in $UPTIME seconds.
