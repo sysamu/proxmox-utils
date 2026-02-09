@@ -96,43 +96,25 @@ balancing_node_resource_reserve:
 # ============================================
 # Integration with Proxmox HA
 # ============================================
-# For VMs managed by BOTH ProxLB and Proxmox HA (with node affinity rules):
+# IMPORTANT: VMs managed by Proxmox HA with Node Affinity should use plb_ignore tag
 #
-# PROBLEM: Maintenance mode can create a migration loop:
-#   1. ProxLB migrates VMs away from maintenance node
-#   2. Proxmox HA migrates VMs back to their preferred node (failback)
-#   3. Loop continues indefinitely
+# WHY: ProxLB + HA Node Affinity can create migration loops:
+#   - During balancing: ProxLB moves VM → HA moves back → loop → max restarts → VM shutdown
+#   - During maintenance: ProxLB evacuates → HA migrates back → loop continues
 #
-# SOLUTION: Manual coordination during planned maintenance:
-#   1. Disable HA for affected VMs in Proxmox UI (Datacenter → HA → Resources)
-#   2. Set proxmox_maintenance_nodes: ["node-name"] and deploy
-#   3. Perform maintenance
-#   4. Remove from proxmox_maintenance_nodes and deploy
-#   5. Re-enable HA in Proxmox UI (HA will do failback automatically)
-#   See README.md for detailed workflow
+# RECOMMENDED APPROACH for HA VMs with node affinity:
+#   1. Add tag "plb_ignore" to VMs in Proxmox UI
+#   2. Configure Proxmox HA with Node Affinity rules
+#   3. For maintenance: manually migrate VMs from Proxmox UI before node work
+#   4. HA handles failover automatically during crashes
 #
-# ALTERNATIVE: Use plb_ignore tag to exclude VMs from ProxLB management:
-#   - Add tag "plb_ignore" to VMs in Proxmox
-#   - ProxLB will completely ignore these VMs
-#   - Useful for VMs fully managed by Proxmox HA
-#   - Manual migration required during maintenance
+# This keeps critical VMs (firewalls, domain controllers) stable and predictable
+# while ProxLB manages the rest of your infrastructure.
 #
 # ============================================
 balancing_pools:
-  # HA Firewalls - anti-affinity ensures they run on different nodes
-  # NOTE: If these VMs also have Proxmox HA node affinity, see README.md
-  #       for planned maintenance workflow to avoid migration loops
-  ha-firewalls:
-    type: anti-affinity
-    strict: false                   # false = allow temporary co-location if needed
-
-  # Example: HA Database cluster - spread across nodes
+  # Example: HA Database cluster - spread across nodes (NO node affinity in HA)
   # ha-databases:
-  #   type: anti-affinity
-  #   strict: true
-
-  # Example: Domain Controllers - never on same node
-  # ha-domain-controllers:
   #   type: anti-affinity
   #   strict: true
 

@@ -121,40 +121,102 @@ ProxLB supports pool-based affinity rules to control VM placement.
 
 ### Pinning VMs to Specific Nodes
 
-Use Proxmox tags to pin VMs to specific nodes:
+ProxLB supports pinning VMs to specific nodes using Proxmox tags:
 
 1. In Proxmox, add tag `plb_pin_<nodename>` to the VM
 2. Example: `plb_pin_pve-node01` pins the VM to `pve-node01`
 
-**Important limitations:**
-- Pinning tags have priority over `maintenance_nodes` - pinned VMs will NOT be evacuated during maintenance
-- For planned maintenance of nodes with pinned VMs, manually remove the pin tag first
-- Use Proxmox HA as a fallback for node failures (HA will migrate VMs regardless of ProxLB pinning)
+**Critical limitation:**
+- **Pinning has absolute priority over `maintenance_nodes`** - pinned VMs will NOT be evacuated during maintenance mode
+- This behavior occurs even with `balancing_enforce_pinning: false`
+- For planned maintenance, you MUST manually remove pin tags first, then restore them after
+
+**Why we don't recommend pinning for HA services:**
+
+Pinning adds complexity and manual steps for maintenance:
+- ❌ More manual work: Remove tags → maintenance → restore tags
+- ❌ Error-prone: Easy to forget which VMs were pinned to which nodes
+- ❌ No evacuation: VMs stay on node even in maintenance mode
+
+**Better alternative:** Use Proxmox HA Node Affinity instead:
+- ✅ VMs automatically return to preferred nodes after maintenance (failback)
+- ✅ Only 1 click to disable/enable during maintenance
+- ✅ Works seamlessly with ProxLB anti-affinity pools
+- ✅ Simpler workflow (see "Planned Maintenance" section below)
 
 ### Recommended Strategy for HA Services
 
-For critical services like HA firewalls:
+For critical services like HA firewalls that need to:
+- Stay on specific nodes during normal operation
+- Be separated across different nodes (HA)
+- Failover automatically during crashes
+- NOT move during normal ProxLB balancing operations
 
-1. Use `anti-affinity` pool to ensure VMs run on different nodes
-2. Use `plb_pin_*` tags to keep VMs on preferred nodes during normal operation
-3. Enable Proxmox HA for automatic failover if a node crashes
-4. For planned maintenance: remove pin tag -> wait for migration -> maintain -> restore tag
+**⚠️ CRITICAL: ProxLB + HA Node Affinity = Migration Loop Risk**
+
+When a VM is managed by both ProxLB pools/balancing AND Proxmox HA Node Affinity:
+
+**Loop during automatic balancing:**
+1. Cluster becomes unbalanced (node reaches 75% memory/CPU)
+2. ProxLB moves VM to balance the cluster
+3. HA Node Affinity migrates VM back to preferred node
+4. ProxLB detects unbalance again and moves VM
+5. **Infinite loop → max reallocations → max restarts → VM shutdown** 💥
+
+**Loop during maintenance mode:**
+1. ProxLB evacuates VM from maintenance node
+2. HA Node Affinity migrates VM back to preferred node (failback)
+3. ProxLB evacuates again
+4. Loop continues indefinitely
+
+**RECOMMENDED: Use `plb_ignore` tag**
+
+For VMs with Proxmox HA Node Affinity configured:
+
+1. **Add `plb_ignore` tag** to VMs in Proxmox UI
+   - ProxLB will completely ignore these VMs
+   - No risk of migration loops under any circumstance
+
+2. **Configure Proxmox HA with Node Affinity**
+   - VMs stay on preferred nodes
+   - Automatic failover during node crashes
+   - Automatic failback after node recovery
+
+3. **Manual migration during planned maintenance**
+   - Before node maintenance: migrate VMs manually from Proxmox UI (2 clicks)
+   - After maintenance: HA Node Affinity returns VMs to preferred nodes automatically
+
+**Why this is better:**
+- ✅ Zero risk of migration loops
+- ✅ Critical VMs never move during balancing
+- ✅ Predictable behavior
+- ✅ HA works perfectly for crashes
+- ✅ Simple maintenance workflow
+
+**Don't use:**
+- ❌ `plb_pin_*` tags - prevent maintenance evacuation
+- ❌ ProxLB pools for VMs with HA Node Affinity - risk of loops
 
 ### Example Configuration
 
 ```yaml
 balancing_pools:
-  # HA Firewalls - ensure they run on different nodes
-  # Pin using plb_pin_<nodename> tags on VMs in Proxmox
-  ha-firewalls:
-    type: anti-affinity
-    strict: false         # Allow temporary co-location if needed
-
   # Database replicas - spread across nodes
+  # Use this when VMs do NOT have Proxmox HA Node Affinity
   ha-databases:
     type: anti-affinity
     strict: true          # Never allow on same node
+
+  # App + Cache - keep together
+  webapp-stack:
+    type: affinity
+    strict: false
 ```
+
+**For VMs with Proxmox HA Node Affinity (firewalls, domain controllers):**
+- Do NOT add them to ProxLB pools
+- Add `plb_ignore` tag in Proxmox UI instead
+- See "Recommended Strategy for HA Services" above
 
 ## Maintenance Mode
 
@@ -209,98 +271,77 @@ ssh user@server "docker logs -f proxlb"
 ssh user@server "cd /opt/proxlb && docker compose restart"
 ```
 
-## Planned Maintenance with HA-Managed VMs
+## Planned Maintenance with VMs Using plb_ignore Tag
 
-When VMs are managed by both ProxLB and Proxmox HA with node affinity rules, you need to coordinate maintenance to avoid migration loops (ProxLB migrates away, HA migrates back).
+For VMs with `plb_ignore` tag (critical VMs managed by Proxmox HA with Node Affinity):
 
 ### Step-by-Step Maintenance Workflow
 
-**Example scenario:** Maintaining `pve-node-a1` with VM 102 that has HA node affinity to `pve-node-a1`.
+**Example scenario:** Maintaining `pve-node-a1` which hosts firewall VM 102 and VM 103 (both tagged `plb_ignore` with HA Node Affinity to `pve-node-a1`).
 
-#### 1. Disable HA Node Affinity (Proxmox UI)
+#### 1. Manually Migrate Critical VMs (Proxmox UI)
 
-Navigate to: **Datacenter → HA → Affinity Rules**
+Navigate to each VM and migrate to another node:
 
-Click "Edit" on the HA Node Affinity rule for your VM and **uncheck "Enable"**:
+**VM 102:**
+1. Right-click VM → **Migrate**
+2. Select target node (e.g., `pve-node-b1`)
+3. Check **Online migration** if VM is running
+4. Click **Migrate**
 
-![Disable HA Node Affinity](docs/images/ha-node-affinity-disable.png)
+**VM 103:**
+1. Repeat for each critical VM on the maintenance node
 
-**Key point:** You're disabling the *node affinity rule*, NOT the HA resource itself. The VM stays under HA protection, but without the preferred node restriction during maintenance.
+**Why:** VMs with `plb_ignore` are not managed by ProxLB, so you must migrate them manually.
 
-This prevents HA from migrating the VM back to `pve-node-a1` during maintenance.
+#### 2. Perform Maintenance
 
-#### 2. Enable ProxLB Maintenance Mode
-
-Edit `vars/main.yml`:
-```yaml
-# Add the node to maintenance
-proxmox_maintenance_nodes: ["pve-node-a1"]
-
-# Optional: Reduce schedule interval for faster migration
-service_schedule_interval: 10
-service_schedule_format: "minutes"
-```
-
-Deploy the configuration:
-```bash
-ansible-playbook -i inventory.yml deploy.yml --tags config
-```
-
-**ProxLB will migrate VM 102 away from `pve-node-a1` in the next cycle (10 minutes).**
-
-#### 3. Perform Maintenance
-
-Once VM 102 has migrated to another node:
+Once all critical VMs are migrated:
 - Update packages
 - Reboot `pve-node-a1`
 - Perform any necessary work
 
 Verify the node is back online and healthy.
 
-#### 4. Disable Maintenance Mode
-
-Edit `vars/main.yml`:
-```yaml
-# Remove the node from maintenance
-proxmox_maintenance_nodes: []
-
-# Restore normal schedule
-service_schedule_interval: 12
-service_schedule_format: "hours"
-```
-
-Deploy the configuration:
-```bash
-ansible-playbook -i inventory.yml deploy.yml --tags config
-```
-
-#### 5. Re-enable HA Node Affinity (Proxmox UI)
+#### 3. Re-enable HA Node Affinity (Proxmox UI)
 
 Navigate to: **Datacenter → HA → Affinity Rules**
 
-Click "Edit" on the HA Node Affinity rule and **check "Enable"** again.
+For each VM's HA Node Affinity rule:
+1. Click **Edit**
+2. Ensure **Enable** is checked
+3. Click **OK**
 
-**Proxmox HA will automatically migrate VM 102 back to `pve-node-a1` (failback).**
+**Proxmox HA will automatically migrate VMs back to `pve-node-a1` (failback).**
 
-### Quick Reference Commands
+![HA Node Affinity Configuration](docs/images/ha-node-affinity-disable.png)
+
+### Quick Reference
 
 ```bash
-# Enable maintenance (fast migration)
-# 1. Edit vars/main.yml: set maintenance_nodes and reduce schedule
-ansible-playbook -i inventory.yml deploy.yml --tags config
+# For VMs with plb_ignore tag:
+# 1. Manually migrate VMs from Proxmox UI
+# 2. Perform maintenance
+# 3. HA Node Affinity handles automatic failback
 
-# Disable maintenance (restore normal operation)
-# 2. Edit vars/main.yml: remove maintenance_nodes and restore schedule
+# For other VMs (managed by ProxLB):
+# Use maintenance_nodes to evacuate automatically
+# Edit vars/main.yml:
+proxmox_maintenance_nodes: ["pve-node-a1"]
+service_schedule_interval: 10  # Optional: faster evacuation
+service_schedule_format: "minutes"
+
+# Then deploy:
 ansible-playbook -i inventory.yml deploy.yml --tags config
 ```
 
-### Alternative: plb_ignore Tag
+### Summary: When to Use What
 
-For VMs that should NEVER be moved by ProxLB (fully managed by Proxmox HA):
-
-1. In Proxmox UI, add tag `plb_ignore` to the VM
-2. ProxLB will completely ignore these VMs
-3. For maintenance, manually migrate using Proxmox UI before node maintenance
+| VM Type | Management | Maintenance Approach |
+|---------|-----------|---------------------|
+| Critical VMs with HA Node Affinity (firewalls, DCs) | `plb_ignore` tag | Manual migration from Proxmox UI |
+| Regular VMs with anti-affinity needs (databases) | ProxLB pools | ProxLB maintenance mode |
+| Standard VMs | ProxLB balancing | ProxLB maintenance mode |
 
 ## References
 
