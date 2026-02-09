@@ -92,21 +92,36 @@ balancing_node_resource_reserve:
 #
 # Options:
 #   - strict: true = fail if rule can't be satisfied
-#   - pin: use plb_pin_$nodename tag on VMs in Proxmox to restrict to specific nodes
-#         (e.g., plb_pin_pve-node01 to pin a VM to pve-node01)
 #
-# IMPORTANT: Pinning tags have PRIORITY over maintenance_nodes!
-# Pinned VMs will NOT be evacuated during maintenance. For planned maintenance:
-#   1. Remove plb_pin_* tag from VM in Proxmox
-#   2. Add node to maintenance_nodes and apply config
-#   3. Wait for migration, then perform maintenance
-#   4. Remove from maintenance_nodes, restore pin tag
-# Use Proxmox HA as fallback for unplanned node failures.
+# ============================================
+# Integration with Proxmox HA
+# ============================================
+# For VMs managed by BOTH ProxLB and Proxmox HA (with node affinity rules):
 #
+# PROBLEM: Maintenance mode can create a migration loop:
+#   1. ProxLB migrates VMs away from maintenance node
+#   2. Proxmox HA migrates VMs back to their preferred node (failback)
+#   3. Loop continues indefinitely
+#
+# SOLUTION: Manual coordination during planned maintenance:
+#   1. Disable HA for affected VMs in Proxmox UI (Datacenter → HA → Resources)
+#   2. Set proxmox_maintenance_nodes: ["node-name"] and deploy
+#   3. Perform maintenance
+#   4. Remove from proxmox_maintenance_nodes and deploy
+#   5. Re-enable HA in Proxmox UI (HA will do failback automatically)
+#   See README.md for detailed workflow
+#
+# ALTERNATIVE: Use plb_ignore tag to exclude VMs from ProxLB management:
+#   - Add tag "plb_ignore" to VMs in Proxmox
+#   - ProxLB will completely ignore these VMs
+#   - Useful for VMs fully managed by Proxmox HA
+#   - Manual migration required during maintenance
+#
+# ============================================
 balancing_pools:
   # HA Firewalls - anti-affinity ensures they run on different nodes
-  # Pin using plb_pin_$nodename tags on VMs in Proxmox
-  # Proxmox HA recommended as failover for node crashes
+  # NOTE: If these VMs also have Proxmox HA node affinity, use maintenance.yml
+  #       playbook for planned maintenance to avoid migration loops
   ha-firewalls:
     type: anti-affinity
     strict: false                   # false = allow temporary co-location if needed

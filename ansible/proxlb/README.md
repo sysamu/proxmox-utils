@@ -209,7 +209,61 @@ ssh user@server "docker logs -f proxlb"
 ssh user@server "cd /opt/proxlb && docker compose restart"
 ```
 
+## Planned Maintenance with HA-Managed VMs
+
+When VMs are managed by both ProxLB and Proxmox HA with node affinity rules, you need to coordinate maintenance to avoid migration loops (ProxLB migrates away, HA migrates back).
+
+### Manual Maintenance Workflow
+
+**For VMs with Proxmox HA + Node Affinity:**
+
+1. **Disable HA temporarily** (Proxmox UI):
+   - Navigate to: Datacenter → HA → Resources
+   - Select the VM(s) on the node you're maintaining
+   - Click "Edit" → Set State to "disabled"
+   - This prevents HA from migrating the VM back during maintenance
+
+2. **Enable ProxLB maintenance mode:**
+   ```bash
+   # Edit vars/main.yml
+   proxmox_maintenance_nodes: ["your-node-name"]
+
+   # Apply configuration
+   ansible-playbook deploy.yml --tags config
+   ```
+
+3. **Wait for ProxLB to migrate VMs:**
+   - ProxLB will migrate VMs away in the next cycle (~10-12 hours by default)
+   - To trigger immediately: `docker exec proxlb proxlb --config /etc/proxlb/proxlb.yaml --run-once`
+
+4. **Perform maintenance:**
+   - Update, reboot, or perform necessary work on the node
+
+5. **Disable maintenance mode:**
+   ```bash
+   # Edit vars/main.yml
+   proxmox_maintenance_nodes: []
+
+   # Apply configuration
+   ansible-playbook deploy.yml --tags config
+   ```
+
+6. **Re-enable HA** (Proxmox UI):
+   - Navigate to: Datacenter → HA → Resources
+   - Select the VM(s)
+   - Click "Edit" → Set State back to "started"
+   - HA will automatically migrate VMs back to their preferred nodes (failback)
+
+### Alternative: plb_ignore Tag
+
+For VMs that should NEVER be moved by ProxLB (fully managed by Proxmox HA):
+
+1. In Proxmox UI, add tag `plb_ignore` to the VM
+2. ProxLB will completely ignore these VMs
+3. For maintenance, manually migrate using Proxmox UI before node maintenance
+
 ## References
 
 - [ProxLB Documentation](https://github.com/gyptazy/ProxLB)
 - [ProxLB Example Config](https://github.com/credativ/ProxLB/blob/main/config/proxlb_example.yaml)
+- [Maintenance Mode Guide](MAINTENANCE.md) - Detailed guide for HA integration
