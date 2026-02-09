@@ -120,8 +120,8 @@ balancing_node_resource_reserve:
 # ============================================
 balancing_pools:
   # HA Firewalls - anti-affinity ensures they run on different nodes
-  # NOTE: If these VMs also have Proxmox HA node affinity, use maintenance.yml
-  #       playbook for planned maintenance to avoid migration loops
+  # NOTE: If these VMs also have Proxmox HA node affinity, see README.md
+  #       for planned maintenance workflow to avoid migration loops
   ha-firewalls:
     type: anti-affinity
     strict: false                   # false = allow temporary co-location if needed

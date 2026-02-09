@@ -213,46 +213,86 @@ ssh user@server "cd /opt/proxlb && docker compose restart"
 
 When VMs are managed by both ProxLB and Proxmox HA with node affinity rules, you need to coordinate maintenance to avoid migration loops (ProxLB migrates away, HA migrates back).
 
-### Manual Maintenance Workflow
+### Step-by-Step Maintenance Workflow
 
-**For VMs with Proxmox HA + Node Affinity:**
+**Example scenario:** Maintaining `pve-node-a1` with VM 102 that has HA node affinity to `pve-node-a1`.
 
-1. **Disable HA temporarily** (Proxmox UI):
-   - Navigate to: Datacenter → HA → Resources
-   - Select the VM(s) on the node you're maintaining
-   - Click "Edit" → Set State to "disabled"
-   - This prevents HA from migrating the VM back during maintenance
+#### 1. Disable HA Node Affinity (Proxmox UI)
 
-2. **Enable ProxLB maintenance mode:**
-   ```bash
-   # Edit vars/main.yml
-   proxmox_maintenance_nodes: ["your-node-name"]
+Navigate to: **Datacenter → HA → Affinity Rules**
 
-   # Apply configuration
-   ansible-playbook deploy.yml --tags config
-   ```
+Click "Edit" on the HA Node Affinity rule for your VM and **uncheck "Enable"**:
 
-3. **Wait for ProxLB to migrate VMs:**
-   - ProxLB will migrate VMs away in the next cycle (~10-12 hours by default)
-   - To trigger immediately: `docker exec proxlb proxlb --config /etc/proxlb/proxlb.yaml --run-once`
+![Disable HA Node Affinity](docs/images/ha-node-affinity-disable.png)
 
-4. **Perform maintenance:**
-   - Update, reboot, or perform necessary work on the node
+**Key point:** You're disabling the *node affinity rule*, NOT the HA resource itself. The VM stays under HA protection, but without the preferred node restriction during maintenance.
 
-5. **Disable maintenance mode:**
-   ```bash
-   # Edit vars/main.yml
-   proxmox_maintenance_nodes: []
+This prevents HA from migrating the VM back to `pve-node-a1` during maintenance.
 
-   # Apply configuration
-   ansible-playbook deploy.yml --tags config
-   ```
+#### 2. Enable ProxLB Maintenance Mode
 
-6. **Re-enable HA** (Proxmox UI):
-   - Navigate to: Datacenter → HA → Resources
-   - Select the VM(s)
-   - Click "Edit" → Set State back to "started"
-   - HA will automatically migrate VMs back to their preferred nodes (failback)
+Edit `vars/main.yml`:
+```yaml
+# Add the node to maintenance
+proxmox_maintenance_nodes: ["pve-node-a1"]
+
+# Optional: Reduce schedule interval for faster migration
+service_schedule_interval: 10
+service_schedule_format: "minutes"
+```
+
+Deploy the configuration:
+```bash
+ansible-playbook -i inventory.yml deploy.yml --tags config
+```
+
+**ProxLB will migrate VM 102 away from `pve-node-a1` in the next cycle (10 minutes).**
+
+#### 3. Perform Maintenance
+
+Once VM 102 has migrated to another node:
+- Update packages
+- Reboot `pve-node-a1`
+- Perform any necessary work
+
+Verify the node is back online and healthy.
+
+#### 4. Disable Maintenance Mode
+
+Edit `vars/main.yml`:
+```yaml
+# Remove the node from maintenance
+proxmox_maintenance_nodes: []
+
+# Restore normal schedule
+service_schedule_interval: 12
+service_schedule_format: "hours"
+```
+
+Deploy the configuration:
+```bash
+ansible-playbook -i inventory.yml deploy.yml --tags config
+```
+
+#### 5. Re-enable HA Node Affinity (Proxmox UI)
+
+Navigate to: **Datacenter → HA → Affinity Rules**
+
+Click "Edit" on the HA Node Affinity rule and **check "Enable"** again.
+
+**Proxmox HA will automatically migrate VM 102 back to `pve-node-a1` (failback).**
+
+### Quick Reference Commands
+
+```bash
+# Enable maintenance (fast migration)
+# 1. Edit vars/main.yml: set maintenance_nodes and reduce schedule
+ansible-playbook -i inventory.yml deploy.yml --tags config
+
+# Disable maintenance (restore normal operation)
+# 2. Edit vars/main.yml: remove maintenance_nodes and restore schedule
+ansible-playbook -i inventory.yml deploy.yml --tags config
+```
 
 ### Alternative: plb_ignore Tag
 
