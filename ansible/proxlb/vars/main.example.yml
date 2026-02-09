@@ -1,0 +1,137 @@
+---
+# ProxLB Ansible Variables
+# Documentation: https://github.com/credativ/ProxLB
+
+# ============================================
+# Docker Configuration
+# ============================================
+proxlb_image: "gyptazy/proxlb:latest"
+proxlb_force_pull: false
+proxlb_base_dir: "/opt/proxlb"
+proxlb_timezone: "Europe/Madrid"
+
+# ============================================
+# Proxmox API Configuration
+# ============================================
+# List of Proxmox hosts (FQDN, IPv4, or IPv6)
+proxmox_hosts:
+  - "proxmox1.example.com"
+  - "proxmox2.example.com"
+
+proxmox_user: "root@pam"
+
+# Authentication: Use EITHER token OR password
+# Token method (recommended):
+proxmox_token_id: "proxlb"
+proxmox_token_secret: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+
+# Password method (comment out token vars above and uncomment this):
+# proxmox_pass: "your-password"
+
+proxmox_ssl_verification: false
+proxmox_timeout: 10
+# proxmox_retries: 1
+# proxmox_wait_time: 1
+
+# ============================================
+# Proxmox Cluster Settings
+# ============================================
+# Maintenance mode: VMs will be migrated OFF these nodes
+# Useful before patching/rebooting a node
+# NOTE: VMs with plb_pin_* tags will NOT be evacuated - remove pin tag first!
+# Example: proxmox_maintenance_nodes: ["pve-node01"]
+proxmox_maintenance_nodes: []
+
+# Ignore nodes: ProxLB won't touch these nodes at all
+# Example: proxmox_ignore_nodes: ["pve-storage-only"]
+proxmox_ignore_nodes: []
+
+proxmox_overprovisioning: true
+
+# ============================================
+# Balancing Configuration
+# ============================================
+balancing_enable: true
+balancing_enforce_affinity: true    # Enforce anti-affinity rules
+balancing_enforce_pinning: true     # Enforce plb_pin_$nodename tags for pinning
+balancing_parallel: false
+balancing_live: true
+balancing_with_local_disks: true
+balancing_with_conntrack_state: true
+balancing_types:
+  - vm
+  - ct
+balancing_max_job_validation: 1800
+
+# Thresholds - lower values = more aggressive balancing for even distribution
+balancing_memory_threshold: 50      # Trigger balancing when node exceeds 50%
+balancing_cpu_threshold: 50         # Trigger balancing when node exceeds 50%
+
+# Balanciness: lower value = stricter balance (max delta between nodes)
+# Value of 5 means max 5% difference between highest and lowest node usage
+balancing_balanciness: 5
+
+balancing_method: "memory"          # memory | cpu | disk
+balancing_mode: "used"              # assigned | used | psi
+balancing_larger_guests_first: true # Move larger VMs first for better balance
+
+# Node resource reservations (in GB) - reserve memory for host OS
+balancing_node_resource_reserve:
+  defaults:
+    memory: 4                       # Reserve 4GB per node for hypervisor
+
+# ============================================
+# Pool Affinity/Anti-Affinity Rules
+# ============================================
+# IMPORTANT: Create these pools in Proxmox first (Datacenter → Pools)
+# Then assign VMs/CTs to the pools
+#
+# Types:
+#   - affinity: Keep VMs together on the same node (e.g., app + its local cache)
+#   - anti-affinity: Spread VMs across different nodes (e.g., HA pairs)
+#
+# Options:
+#   - strict: true = fail if rule can't be satisfied
+#   - pin: use plb_pin_$nodename tag on VMs in Proxmox to restrict to specific nodes
+#         (e.g., plb_pin_pve-node01 to pin a VM to pve-node01)
+#
+# IMPORTANT: Pinning tags have PRIORITY over maintenance_nodes!
+# Pinned VMs will NOT be evacuated during maintenance. For planned maintenance:
+#   1. Remove plb_pin_* tag from VM in Proxmox
+#   2. Add node to maintenance_nodes and apply config
+#   3. Wait for migration, then perform maintenance
+#   4. Remove from maintenance_nodes, restore pin tag
+# Use Proxmox HA as fallback for unplanned node failures.
+#
+balancing_pools:
+  # HA Firewalls - anti-affinity ensures they run on different nodes
+  # Pin using plb_pin_$nodename tags on VMs in Proxmox
+  # Proxmox HA recommended as failover for node crashes
+  ha-firewalls:
+    type: anti-affinity
+    strict: false                   # false = allow temporary co-location if needed
+
+  # Example: HA Database cluster - spread across nodes
+  # ha-databases:
+  #   type: anti-affinity
+  #   strict: true
+
+  # Example: Domain Controllers - never on same node
+  # ha-domain-controllers:
+  #   type: anti-affinity
+  #   strict: true
+
+  # Example: App + Cache - keep together on same node
+  # webapp-stack:
+  #   type: affinity
+
+# ============================================
+# Service Configuration
+# ============================================
+service_daemon: true
+service_schedule_interval: 12
+service_schedule_format: "hours"  # hours | minutes
+service_delay_enable: false
+service_delay_time: 1
+service_delay_format: "hours"
+service_log_level: "INFO"  # DEBUG | INFO | WARNING | ERROR

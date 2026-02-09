@@ -52,6 +52,12 @@ credentials.json
 terraform/proxlb/ovh/proxlb.yaml
 !terraform/proxlb/ovh/proxlb.yaml.template
 
+# Ansible sensitive files
+ansible/*/vars/main.yml
+ansible/*/inventory.yml
+!ansible/*/vars/main.example.yml
+!ansible/*/inventory.example.yml
+
 # Logs
 *.log
 logs/

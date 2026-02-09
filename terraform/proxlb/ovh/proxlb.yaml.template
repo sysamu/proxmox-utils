@@ -1,82 +1,90 @@
-# ProxLB Configuration File
-# Documentation: https://github.com/gyptazy/ProxLB
-
-# Proxmox API Configuration
 proxmox_api:
-  hosts: ['${PROXMOX_NODE1_HOST}', '${PROXMOX_NODE2_HOST}', '${PROXMOX_NODE3_HOST}', '${PROXMOX_NODE4_HOST}']
-  user: ${PROXMOX_USER}
-  token_id: ${PROXMOX_TOKEN_NAME}
-  token_secret: ${PROXMOX_NODE1_TOKEN}
-  ssl_verification: False
+  hosts: ['virt01.example.com', '10.10.10.10', 'fe01:bad:code::cafe']
+  user: root@pam
+  pass: crazyPassw0rd!
+  # API Token method
+  # token_id: proxlb
+  # token_secret: 430e308f-1337-1337-beef-1337beefcafe
+  ssl_verification: True
   timeout: 10
   # API Connection retries
   # retries: 1
   # wait_time: 1
 
-# Proxmox Cluster Configuration
 proxmox_cluster:
-  # Nodes in maintenance mode (migrations will avoid these nodes)
-  maintenance_nodes: []
-  # Nodes to completely ignore
+  maintenance_nodes: ['virt66.example.com']
   ignore_nodes: []
-  # Allow overprovisioning of resources
   overprovisioning: True
 
-# Balancing Configuration
 balancing:
-  # Enable automatic balancing
   enable: True
-  # Enforce VM/CT affinity rules
   enforce_affinity: False
-  # Enable parallel migrations (multiple at once)
+  enforce_pinning: False
   parallel: False
-  # Use live migration (no downtime)
+  # If running parallel job, you can define
+  # the amount of prallel jobs (default: 5)
+  parallel_jobs: 1
   live: True
-  # Allow migration of VMs with local disks
   with_local_disks: True
-  # Preserve conntrack state during migration
   with_conntrack_state: True
-  # Types of guests to balance: vm (VMs), ct (containers), or both
-  balance_types: ['vm', 'ct']
-  # Maximum time in seconds to validate a migration job
-  max_job_validation: 1800
-  # Memory usage threshold percentage to trigger rebalancing
-  memory_threshold: 75
-  # Balanciness factor (1-10): higher = more aggressive balancing
-  # 1 = conservative (large imbalances only)
-  # 5 = moderate (recommended for most clusters)
-  # 10 = aggressive (balance even small differences)
-  balanciness: 5
-  # Balancing method: memory, cpu, or psi (Pressure Stall Information - requires PVE >= 9)
-  method: memory
-  # Balancing mode: used (actual usage) or psi (pressure metrics)
-  mode: used
+  balance_types: ['vm', 'ct']         # 'vm' | 'ct'
+  max_job_validation: 1800            # Maximum time (in seconds) a job validation may take
+  memory_threshold: 75                # Optional: Maximum threshold (in percent) to trigger balancing actions
+  cpu_threshold: 75                   # Optional: Maximum threshold (in percent) to trigger balancing actions
+  balanciness: 5                      # Maximum delta of resource usage between highest and lowest usage node
+  method: memory                      # 'memory' | 'cpu' | 'disk'
+  mode: used                          # 'assigned' | 'used' | 'psi'
+  balance_larger_guests_first: False  # Option to prioritize balancing of larger or smaller guests first
+  node_resource_reserve:              # Optional: Define resource reservations for nodes (in GB)
+    defaults:                         # Default reservation values applying to all nodes (unless explicitly overridden)
+      memory: 4                       # Default: 4 GB memory reserved per node
+    node01:                           # Specific node reservation override for node 'node01'
+      memory: 6                       # Specific: 6 GB memory reserved for node 'node01'
+  # # PSI thresholds only apply when using mode 'psi'
+  # psi:
+  #   nodes:
+  #     memory:
+  #       pressure_full: 0.20
+  #       pressure_some: 0.20
+  #       pressure_spikes: 1.00
+  #     cpu:
+  #       pressure_full: 0.20
+  #       pressure_some: 0.20
+  #       pressure_spikes: 1.00
+  #     disk:
+  #       pressure_full: 0.20
+  #       pressure_some: 0.20
+  #       pressure_spikes: 1.00
+  #   guests:
+  #     memory:
+  #       pressure_full: 0.20
+  #       pressure_some: 0.20
+  #       pressure_spikes: 1.00
+  #     cpu:
+  #       pressure_full: 0.20
+  #       pressure_some: 0.20
+  #       pressure_spikes: 1.00
+  #     disk:
+  #       pressure_full: 0.20
+  #       pressure_some: 0.20
+  #       pressure_spikes: 1.00
+  pools:                              # Optional: Define affinity/anti-affinity rules per pool
+    dev:                              # Pool name: dev
+      type: affinity                  # Type: affinity (keeping VMs together)
+    de-nbg01-db:                      # Pool name: de-nbg01-db
+      type: anti-affinity             # Type: anti-affinity (spreading VMs apart)
+      pin:                            # Define a pinning og guests to specific node(s)
+        - virt66
+        - virt77
+      strict: False                   # Disable strict mode of node pinning for this pool
 
-  # Pool-based balancing rules (optional)
-  # Define affinity/anti-affinity rules for specific resource pools
-  pools: {}
-  #   dev:
-  #     type: affinity
-  #   production:
-  #     type: anti-affinity
-  #     pin:
-  #       - ${PROXMOX_NODE1_HOST}
-  #       - ${PROXMOX_NODE2_HOST}
-
-# Service Configuration
 service:
-  # Run as daemon
   daemon: True
-  # Scheduling configuration
   schedule:
-    # Run balancing check every X hours/minutes
     interval: 12
     format: hours
-  # Delay configuration
   delay:
-    # Enable delay before performing migrations
     enable: False
     time: 1
     format: hours
-  # Logging level: DEBUG, INFO, WARNING, ERROR
   log_level: INFO

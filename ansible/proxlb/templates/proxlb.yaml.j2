@@ -1,0 +1,78 @@
+# ProxLB Configuration File
+# Managed by Ansible - Do not edit manually
+# Documentation: https://github.com/credativ/ProxLB
+
+proxmox_api:
+  hosts: {{ proxmox_hosts | to_json }}
+  user: {{ proxmox_user | default('root@pam') }}
+{% if proxmox_token_id is defined %}
+  token_id: {{ proxmox_token_id }}
+  token_secret: {{ proxmox_token_secret }}
+{% else %}
+  pass: {{ proxmox_pass }}
+{% endif %}
+  ssl_verification: {{ proxmox_ssl_verification | default(false) }}
+  timeout: {{ proxmox_timeout | default(10) }}
+{% if proxmox_retries is defined %}
+  retries: {{ proxmox_retries }}
+  wait_time: {{ proxmox_wait_time | default(1) }}
+{% endif %}
+
+proxmox_cluster:
+  maintenance_nodes: {{ proxmox_maintenance_nodes | default([]) | to_json }}
+  ignore_nodes: {{ proxmox_ignore_nodes | default([]) | to_json }}
+  overprovisioning: {{ proxmox_overprovisioning | default(true) }}
+
+balancing:
+  enable: {{ balancing_enable | default(true) }}
+  enforce_affinity: {{ balancing_enforce_affinity | default(false) }}
+  enforce_pinning: {{ balancing_enforce_pinning | default(false) }}
+  parallel: {{ balancing_parallel | default(false) }}
+{% if balancing_parallel | default(false) %}
+  parallel_jobs: {{ balancing_parallel_jobs | default(5) }}
+{% endif %}
+  live: {{ balancing_live | default(true) }}
+  with_local_disks: {{ balancing_with_local_disks | default(true) }}
+  with_conntrack_state: {{ balancing_with_conntrack_state | default(true) }}
+  balance_types: {{ balancing_types | default(['vm', 'ct']) | to_json }}
+  max_job_validation: {{ balancing_max_job_validation | default(1800) }}
+  memory_threshold: {{ balancing_memory_threshold | default(75) }}
+  cpu_threshold: {{ balancing_cpu_threshold | default(75) }}
+  balanciness: {{ balancing_balanciness | default(5) }}
+  method: {{ balancing_method | default('memory') }}
+  mode: {{ balancing_mode | default('used') }}
+  balance_larger_guests_first: {{ balancing_larger_guests_first | default(false) }}
+{% if balancing_node_resource_reserve is defined %}
+  node_resource_reserve:
+{% for node, values in balancing_node_resource_reserve.items() %}
+    {{ node }}:
+      memory: {{ values.memory }}
+{% endfor %}
+{% endif %}
+{% if balancing_pools is defined and balancing_pools %}
+  pools:
+{% for pool_name, pool_config in balancing_pools.items() %}
+    {{ pool_name }}:
+      type: {{ pool_config.type }}
+{% if pool_config.pin is defined %}
+      pin:
+{% for pin_node in pool_config.pin %}
+        - {{ pin_node }}
+{% endfor %}
+{% endif %}
+{% if pool_config.strict is defined %}
+      strict: {{ pool_config.strict }}
+{% endif %}
+{% endfor %}
+{% endif %}
+
+service:
+  daemon: {{ service_daemon | default(true) }}
+  schedule:
+    interval: {{ service_schedule_interval | default(12) }}
+    format: {{ service_schedule_format | default('hours') }}
+  delay:
+    enable: {{ service_delay_enable | default(false) }}
+    time: {{ service_delay_time | default(1) }}
+    format: {{ service_delay_format | default('hours') }}
+  log_level: {{ service_log_level | default('INFO') }}

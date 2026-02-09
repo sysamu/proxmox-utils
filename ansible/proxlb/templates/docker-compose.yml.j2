@@ -1,0 +1,14 @@
+services:
+  proxlb:
+    image: {{ proxlb_image }}
+    container_name: proxlb
+    restart: unless-stopped
+    volumes:
+      - ./proxlb.yaml:/etc/proxlb/proxlb.yaml:ro
+    environment:
+      - TZ={{ proxlb_timezone | default('Europe/Madrid') }}
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"

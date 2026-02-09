@@ -1,0 +1,147 @@
+---
+# ProxLB Deployment Playbook
+# Deploys ProxLB as a Docker container on an existing instance
+#
+# Usage:
+#   ansible-playbook -i inventory.yml deploy.yml
+#   ansible-playbook -i inventory.yml deploy.yml --tags "config"  # Only update config
+#   ansible-playbook -i inventory.yml deploy.yml -e "proxlb_restart=true"  # Force restart
+
+- name: Deploy ProxLB
+  hosts: all
+  become: true
+  vars_files:
+    - vars/main.yml
+
+  tasks:
+    # ============================================
+    # Docker Installation (if not present)
+    # ============================================
+    - name: Check if Docker is installed
+      command: docker --version
+      register: docker_check
+      ignore_errors: true
+      changed_when: false
+      tags: [docker]
+
+    - name: Install Docker prerequisites
+      apt:
+        name:
+          - apt-transport-https
+          - ca-certificates
+          - curl
+          - gnupg
+          - lsb-release
+        state: present
+        update_cache: true
+      when: docker_check.rc != 0
+      tags: [docker]
+
+    - name: Add Docker GPG key
+      apt_key:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        state: present
+      when: docker_check.rc != 0
+      tags: [docker]
+
+    - name: Add Docker repository
+      apt_repository:
+        repo: "deb [arch=amd64] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
+        state: present
+      when: docker_check.rc != 0
+      tags: [docker]
+
+    - name: Install Docker
+      apt:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+          - docker-compose-plugin
+        state: present
+        update_cache: true
+      when: docker_check.rc != 0
+      tags: [docker]
+
+    - name: Ensure Docker service is running
+      systemd:
+        name: docker
+        state: started
+        enabled: true
+      tags: [docker]
+
+    # ============================================
+    # ProxLB Directory Setup
+    # ============================================
+    - name: Create ProxLB directory
+      file:
+        path: "{{ proxlb_base_dir }}"
+        state: directory
+        mode: '0755'
+      tags: [config, setup]
+
+    # ============================================
+    # Configuration Files
+    # ============================================
+    - name: Deploy ProxLB configuration
+      template:
+        src: templates/proxlb.yaml.j2
+        dest: "{{ proxlb_base_dir }}/proxlb.yaml"
+        mode: '0644'
+      notify: Restart ProxLB
+      tags: [config]
+
+    - name: Deploy docker-compose file
+      template:
+        src: templates/docker-compose.yml.j2
+        dest: "{{ proxlb_base_dir }}/docker-compose.yml"
+        mode: '0644'
+      notify: Restart ProxLB
+      tags: [config]
+
+    # ============================================
+    # Deploy ProxLB Container
+    # ============================================
+    - name: Pull ProxLB image
+      community.docker.docker_image:
+        name: "{{ proxlb_image }}"
+        source: pull
+        force_source: "{{ proxlb_force_pull | default(false) }}"
+      tags: [deploy]
+
+    - name: Start ProxLB container
+      community.docker.docker_compose_v2:
+        project_src: "{{ proxlb_base_dir }}"
+        state: present
+      register: proxlb_compose
+      tags: [deploy]
+
+    - name: Force restart if requested
+      community.docker.docker_compose_v2:
+        project_src: "{{ proxlb_base_dir }}"
+        state: restarted
+      when: proxlb_restart | default(false) | bool
+      tags: [deploy]
+
+    # ============================================
+    # Verification
+    # ============================================
+    - name: Wait for container to be running
+      community.docker.docker_container_info:
+        name: proxlb
+      register: container_info
+      until: container_info.container.State.Running | default(false)
+      retries: 5
+      delay: 3
+      tags: [verify]
+
+    - name: Show container status
+      debug:
+        msg: "ProxLB container is {{ 'running' if container_info.container.State.Running else 'not running' }}"
+      tags: [verify]
+
+  handlers:
+    - name: Restart ProxLB
+      community.docker.docker_compose_v2:
+        project_src: "{{ proxlb_base_dir }}"
+        state: restarted
