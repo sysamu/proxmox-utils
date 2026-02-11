@@ -89,8 +89,9 @@ generate_passphrase() {
     local dict="/usr/share/dict/spanish"
 
     if [[ ! -f "$dict" ]]; then
-        echo "ERROR: Diccionario español no encontrado." >&2
-        echo "       Instálalo con: sudo apt install wspanish" >&2
+        echo "ERROR: Diccionario español no encontrado en $dict" >&2
+        echo "       Linux:  sudo apt install wspanish" >&2
+        echo "       macOS:  brew install aspell && aspell dump master es | sort -u | sudo tee $dict > /dev/null" >&2
         exit 1
     fi
 

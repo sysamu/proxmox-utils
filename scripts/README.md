@@ -1056,9 +1056,9 @@ bash passgen.sh --length 32
 Generates a passphrase using random words from the system's Spanish dictionary.
 
 **Requirements:**
-- **Prerequisite:** `sudo apt install wspanish` (installs `/usr/share/dict/spanish`)
 - Minimum 4 words
 - Words filtered to 4-8 characters, lowercase only, no accents/ñ/dieresis
+- Requires a Spanish dictionary at `/usr/share/dict/spanish` (see install instructions below)
 
 ```bash
 # Default: 4 words separated by hyphens
@@ -1074,6 +1074,15 @@ curl -sL .../passgen.sh | bash -s -- --passphrase --separator .
 **Example output:** `tierra5-campo2-norte8-fuego1`
 
 **Important:** The dictionary is NOT included in the repository. This is intentional — embedding the wordlist would expose the keyspace, reducing security.
+
+**Installing the Spanish dictionary:**
+
+| OS | Command |
+|----|---------|
+| Debian/Ubuntu | `sudo apt install wspanish` |
+| macOS (Homebrew) | `brew install aspell && aspell dump master es \| sort -u \| sudo tee /usr/share/dict/spanish > /dev/null` |
+
+On macOS, the `aspell` approach dumps the Spanish wordlist and places it where the script expects it. You only need to do this once.
 
 ---
 
