@@ -113,9 +113,10 @@ generate_passphrase() {
 
     local parts=()
     for ((i = 0; i < WORDS; i++)); do
-        local idx
+        local idx digit
         idx=$(( $(od -An -tu4 -N4 /dev/urandom | tr -d ' ') % count + 1 ))
-        parts+=("$(echo "$wordlist" | sed -n "${idx}p")")
+        digit=$(( $(od -An -tu4 -N4 /dev/urandom | tr -d ' ') % 10 ))
+        parts+=("$(echo "$wordlist" | sed -n "${idx}p")${digit}")
     done
 
     local passphrase

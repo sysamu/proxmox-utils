@@ -1019,7 +1019,7 @@ curl -sL https://raw.githubusercontent.com/sysamu/proxmox-utils/main/scripts/pas
 | Mode | Flag | Output example |
 |------|------|----------------|
 | Password (default) | — | `Rp5RRL#dYYf6Nzjr` |
-| Passphrase | `--passphrase` | `tierra-campo-norte-fuego` |
+| Passphrase | `--passphrase` | `tierra5-campo2-norte8-fuego1` |
 | Tech token | `--tech` | `K6k08ssLjPU80jmP9qVG5OVDVE+KX4aP...` |
 
 ---
@@ -1071,7 +1071,7 @@ curl -sL .../passgen.sh | bash -s -- --passphrase --words 6
 curl -sL .../passgen.sh | bash -s -- --passphrase --separator .
 ```
 
-**Example output:** `tierra-campo-norte-fuego`
+**Example output:** `tierra5-campo2-norte8-fuego1`
 
 **Important:** The dictionary is NOT included in the repository. This is intentional — embedding the wordlist would expose the keyspace, reducing security.
 
