@@ -1,0 +1,144 @@
+#!/bin/bash
+# passgen.sh — Generador de contraseñas/passphrases seguras
+# Uso: curl -sL <url>/passgen.sh | bash
+# Uso: curl -sL <url>/passgen.sh | bash -s -- --passphrase
+# Uso: curl -sL <url>/passgen.sh | bash -s -- --length 24
+# Uso: curl -sL <url>/passgen.sh | bash -s -- --passphrase --words 6
+# Uso: curl -sL <url>/passgen.sh | bash -s -- --tech
+
+set -euo pipefail
+
+# === Defaults ===
+MODE="password"
+LENGTH=""
+WORDS=4
+SEPARATOR="-"
+
+# === Parse args ===
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --passphrase) MODE="passphrase"; shift ;;
+        --tech)       MODE="tech"; shift ;;
+        --length)     LENGTH="$2"; shift 2 ;;
+        --words)      WORDS="$2"; shift 2 ;;
+        --separator)  SEPARATOR="$2"; shift 2 ;;
+        --help|-h)
+            cat <<'HELP'
+passgen.sh — Generador de contraseñas seguras
+
+USO:
+  bash passgen.sh [opciones]
+  curl -sL <url>/passgen.sh | bash -s -- [opciones]
+
+MODOS:
+  (por defecto)    Genera una contraseña aleatoria
+  --passphrase     Genera una frase de contraseña en español
+  --tech           Genera token base64 (openssl rand -base64 32)
+
+OPCIONES MODO PASSWORD:
+  --length N       Longitud de la contraseña (mínimo 16, default: 16)
+
+OPCIONES MODO PASSPHRASE:
+  --words N        Número de palabras (mínimo 4, default: 4)
+  --separator C    Separador entre palabras (default: -)
+
+  Requiere: sudo apt install wspanish
+
+OPCIONES MODO TECH:
+  --length N       Bytes de entropía para openssl (default: 32 → 44 chars)
+
+HELP
+            exit 0
+            ;;
+        *) echo "ERROR: Opción desconocida: $1" >&2; exit 1 ;;
+    esac
+done
+
+# === Password mode ===
+generate_password() {
+    local len=${LENGTH:-16}
+
+    if [[ $len -lt 16 ]]; then
+        echo "ERROR: La longitud mínima es 16 caracteres." >&2
+        exit 1
+    fi
+
+    # Caracteres seguros para curl|bash/powershell (sin $, \, `, ', ", &, |, ;, etc.)
+    # El guión (-) va al final para que tr no lo interprete como rango
+    local charset="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789#?!._-"
+
+    local password=""
+    while true; do
+        # Generar candidata usando /dev/urandom
+        password=$(LC_ALL=C tr -dc "$charset" < /dev/urandom | head -c "$len" 2>/dev/null || true)
+
+        # Verificar que cumple todos los requisitos
+        [[ "$password" =~ [A-Z] ]] || continue
+        [[ "$password" =~ [a-z] ]] || continue
+        [[ "$password" =~ [0-9] ]] || continue
+        [[ "$password" == *[#?!._-]* ]] || continue
+
+        break
+    done
+
+    echo "$password"
+}
+
+# === Passphrase mode ===
+generate_passphrase() {
+    local dict="/usr/share/dict/spanish"
+
+    if [[ ! -f "$dict" ]]; then
+        echo "ERROR: Diccionario español no encontrado." >&2
+        echo "       Instálalo con: sudo apt install wspanish" >&2
+        exit 1
+    fi
+
+    if [[ $WORDS -lt 4 ]]; then
+        echo "ERROR: El mínimo de palabras es 4." >&2
+        exit 1
+    fi
+
+    # Filtrar palabras: solo minúsculas, sin acentos/ñ/diéresis, longitud 4-8
+    local wordlist
+    wordlist=$(grep -E '^[a-z]{4,8}$' "$dict" | sort -u)
+
+    local count
+    count=$(echo "$wordlist" | wc -l)
+
+    if [[ $count -lt 500 ]]; then
+        echo "ERROR: Diccionario demasiado pequeño tras filtrar ($count palabras)." >&2
+        exit 1
+    fi
+
+    local parts=()
+    for ((i = 0; i < WORDS; i++)); do
+        local idx
+        idx=$(( $(od -An -tu4 -N4 /dev/urandom | tr -d ' ') % count + 1 ))
+        parts+=("$(echo "$wordlist" | sed -n "${idx}p")")
+    done
+
+    local passphrase
+    passphrase=$(IFS="$SEPARATOR"; echo "${parts[*]}")
+
+    echo "$passphrase"
+}
+
+# === Tech mode (base64 token) ===
+generate_tech() {
+    local bytes=${LENGTH:-32}
+
+    if ! command -v openssl &>/dev/null; then
+        echo "ERROR: openssl no está instalado." >&2
+        exit 1
+    fi
+
+    openssl rand -base64 "$bytes"
+}
+
+# === Main ===
+case "$MODE" in
+    password)    generate_password ;;
+    passphrase)  generate_passphrase ;;
+    tech)        generate_tech ;;
+esac

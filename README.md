@@ -30,6 +30,7 @@ proxmox-utils/
 │   ├── php_installer.sh
 │   ├── nginx_installer.sh
 │   ├── sshd_hardening.sh
+│   ├── passgen.sh
 │   └── README.md     # Detailed documentation for all scripts
 │
 └── terraform/        # Infrastructure as Code deployments
@@ -56,6 +57,9 @@ sudo ./SCRIPT_NAME.sh
 - **Cache Management** - ZFS ARC and system cache optimization
 - **Storage Configuration** - ZFS pool setup and management
 - **SSH Hardening** - Automated SSH security configuration with key-based authentication
+
+### Security & Credentials
+- **Password Generator** - Secure password, passphrase, and token generation (`curl | bash` ready)
 
 ### Web Server Tools
 - **Apache Optimizer** - Auto-configuration for Apache + PHP-FPM

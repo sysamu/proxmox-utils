@@ -996,6 +996,129 @@ The script adjusts settings based on RAM:
 
 ---
 
+### 7. `passgen.sh`
+
+**Quick install:**
+```bash
+# Generate a password (default: 16 chars)
+curl -sL https://raw.githubusercontent.com/sysamu/proxmox-utils/main/scripts/passgen.sh | bash
+
+# Generate a passphrase in Spanish
+curl -sL https://raw.githubusercontent.com/sysamu/proxmox-utils/main/scripts/passgen.sh | bash -s -- --passphrase
+
+# Generate a base64 tech token
+curl -sL https://raw.githubusercontent.com/sysamu/proxmox-utils/main/scripts/passgen.sh | bash -s -- --tech
+```
+
+**Purpose:** Generate secure passwords, passphrases, or base64 tokens directly from the terminal.
+
+**Use Case:** Quick generation of secure credentials for services, APIs, databases, or any scenario where you need a strong password without installing additional tools.
+
+**Three modes:**
+
+| Mode | Flag | Output example |
+|------|------|----------------|
+| Password (default) | — | `Rp5RRL#dYYf6Nzjr` |
+| Passphrase | `--passphrase` | `tierra-campo-norte-fuego` |
+| Tech token | `--tech` | `K6k08ssLjPU80jmP9qVG5OVDVE+KX4aP...` |
+
+---
+
+#### Mode: Password (default)
+
+Generates a random password with guaranteed complexity.
+
+**Requirements enforced:**
+- Minimum 16 characters
+- At least one uppercase letter (A-Z)
+- At least one lowercase letter (a-z)
+- At least one digit (0-9)
+- At least one symbol from: `#?!._-`
+
+**Symbols chosen specifically** to avoid issues with bash, curl, powershell, and shell escaping. No `$`, `\`, `` ` ``, `'`, `"`, `&`, `|`, or `;`.
+
+```bash
+# Default: 16 characters
+curl -sL .../passgen.sh | bash
+
+# Custom length (minimum 16)
+curl -sL .../passgen.sh | bash -s -- --length 24
+
+# Download and run locally
+bash passgen.sh
+bash passgen.sh --length 32
+```
+
+---
+
+#### Mode: Passphrase (`--passphrase`)
+
+Generates a passphrase using random words from the system's Spanish dictionary.
+
+**Requirements:**
+- **Prerequisite:** `sudo apt install wspanish` (installs `/usr/share/dict/spanish`)
+- Minimum 4 words
+- Words filtered to 4-8 characters, lowercase only, no accents/ñ/dieresis
+
+```bash
+# Default: 4 words separated by hyphens
+curl -sL .../passgen.sh | bash -s -- --passphrase
+
+# More words
+curl -sL .../passgen.sh | bash -s -- --passphrase --words 6
+
+# Custom separator
+curl -sL .../passgen.sh | bash -s -- --passphrase --separator .
+```
+
+**Example output:** `tierra-campo-norte-fuego`
+
+**Important:** The dictionary is NOT included in the repository. This is intentional — embedding the wordlist would expose the keyspace, reducing security.
+
+---
+
+#### Mode: Tech token (`--tech`)
+
+Generates a base64-encoded random token using `openssl rand`.
+
+```bash
+# Default: 32 bytes of entropy (44 chars output)
+curl -sL .../passgen.sh | bash -s -- --tech
+
+# Custom entropy (64 bytes)
+curl -sL .../passgen.sh | bash -s -- --tech --length 64
+```
+
+**Requires:** `openssl` (pre-installed on virtually all Linux systems).
+
+---
+
+#### All options
+
+```
+passgen.sh [opciones]
+
+MODES:
+  (default)        Random password
+  --passphrase     Spanish passphrase (requires wspanish)
+  --tech           Base64 token (openssl rand)
+
+PASSWORD OPTIONS:
+  --length N       Password length (min 16, default: 16)
+
+PASSPHRASE OPTIONS:
+  --words N        Number of words (min 4, default: 4)
+  --separator C    Word separator (default: -)
+
+TECH OPTIONS:
+  --length N       Entropy bytes for openssl (default: 32 → 44 chars)
+
+OTHER:
+  --help, -h       Show help
+```
+
+---
+
 ## General Requirements
 
 - Root/sudo privileges
