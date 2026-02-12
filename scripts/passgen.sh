@@ -166,7 +166,7 @@ result=$(
     esac
 )
 
-echo "$result"
+echo "Password: $result"
 
 # === htpasswd output (opcional) ===
 if [[ -n "$HTPASS" ]]; then
@@ -178,5 +178,5 @@ if [[ -n "$HTPASS" ]]; then
     fi
 
     hash=$(echo "$result" | openssl passwd -apr1 -stdin)
-    echo "${local_user}:${hash}"
+    echo "htpasswd: ${local_user}:${hash}"
 fi
