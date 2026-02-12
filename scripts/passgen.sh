@@ -5,6 +5,7 @@
 # Uso: curl -sL <url>/passgen.sh | bash -s -- --length 24
 # Uso: curl -sL <url>/passgen.sh | bash -s -- --passphrase --words 6
 # Uso: curl -sL <url>/passgen.sh | bash -s -- --tech
+# Uso: curl -sL <url>/passgen.sh | bash -s -- --htpass --user admin
 
 set -euo pipefail
 
@@ -13,6 +14,8 @@ MODE="password"
 LENGTH=""
 WORDS=4
 SEPARATOR="-"
+HTPASS=""
+HTPASS_USER=""
 
 # === Parse args ===
 while [[ $# -gt 0 ]]; do
@@ -22,6 +25,8 @@ while [[ $# -gt 0 ]]; do
         --length)     LENGTH="$2"; shift 2 ;;
         --words)      WORDS="$2"; shift 2 ;;
         --separator)  SEPARATOR="$2"; shift 2 ;;
+        --htpass)     HTPASS=1; shift ;;
+        --user)       HTPASS_USER="$2"; shift 2 ;;
         --help|-h)
             cat <<'HELP'
 passgen.sh — Generador de contraseñas seguras
@@ -46,6 +51,10 @@ OPCIONES MODO PASSPHRASE:
 
 OPCIONES MODO TECH:
   --length N       Bytes de entropía para openssl (default: 32 → 44 chars)
+
+HTPASSWD (opcional, combinable con cualquier modo):
+  --htpass         Genera también la línea htpasswd (Apache apr1)
+  --user NAME      Usuario para la línea htpasswd (default: example)
 
 HELP
             exit 0
@@ -86,12 +95,22 @@ generate_password() {
 
 # === Passphrase mode ===
 generate_passphrase() {
-    local dict="/usr/share/dict/spanish"
+    # Buscar diccionario en múltiples ubicaciones
+    local dict=""
+    for path in \
+        /usr/share/dict/spanish \
+        /usr/local/share/dict/spanish \
+        "$HOME/.local/share/dict/spanish"; do
+        if [[ -f "$path" ]]; then
+            dict="$path"
+            break
+        fi
+    done
 
-    if [[ ! -f "$dict" ]]; then
-        echo "ERROR: Diccionario español no encontrado en $dict" >&2
+    if [[ -z "$dict" ]]; then
+        echo "ERROR: Diccionario español no encontrado." >&2
         echo "       Linux:  sudo apt install wspanish" >&2
-        echo "       macOS:  brew install aspell && aspell dump master es | sort -u | sudo tee $dict > /dev/null" >&2
+        echo "       macOS:  brew install aspell && mkdir -p ~/.local/share/dict && aspell dump master es | sort -u > ~/.local/share/dict/spanish" >&2
         exit 1
     fi
 
@@ -139,8 +158,25 @@ generate_tech() {
 }
 
 # === Main ===
-case "$MODE" in
-    password)    generate_password ;;
-    passphrase)  generate_passphrase ;;
-    tech)        generate_tech ;;
-esac
+result=$(
+    case "$MODE" in
+        password)    generate_password ;;
+        passphrase)  generate_passphrase ;;
+        tech)        generate_tech ;;
+    esac
+)
+
+echo "$result"
+
+# === htpasswd output (opcional) ===
+if [[ -n "$HTPASS" ]]; then
+    local_user="${HTPASS_USER:-example}"
+
+    if ! command -v openssl &>/dev/null; then
+        echo "ERROR: openssl es necesario para --htpass" >&2
+        exit 1
+    fi
+
+    hash=$(echo "$result" | openssl passwd -apr1 -stdin)
+    echo "${local_user}:${hash}"
+fi

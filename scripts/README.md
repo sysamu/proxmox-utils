@@ -1080,9 +1080,9 @@ curl -sL .../passgen.sh | bash -s -- --passphrase --separator .
 | OS | Command |
 |----|---------|
 | Debian/Ubuntu | `sudo apt install wspanish` |
-| macOS (Homebrew) | `brew install aspell && aspell dump master es \| sort -u \| sudo tee /usr/share/dict/spanish > /dev/null` |
+| macOS (Homebrew) | `brew install aspell && mkdir -p ~/.local/share/dict && aspell dump master es \| sort -u > ~/.local/share/dict/spanish` |
 
-On macOS, the `aspell` approach dumps the Spanish wordlist and places it where the script expects it. You only need to do this once.
+The script searches for the dictionary in: `/usr/share/dict/spanish`, `/usr/local/share/dict/spanish`, and `~/.local/share/dict/spanish`. On macOS, the home directory path avoids SIP restrictions — no `sudo` needed. You only need to do this once.
 
 ---
 
