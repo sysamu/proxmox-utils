@@ -6,6 +6,8 @@
 # Uso: curl -sL <url>/passgen.sh | bash -s -- --passphrase --words 6
 # Uso: curl -sL <url>/passgen.sh | bash -s -- --tech
 # Uso: curl -sL <url>/passgen.sh | bash -s -- --htpass --user admin
+# Uso: curl -sL <url>/passgen.sh | bash -s -- --create-user deploy
+# Uso: curl -sL <url>/passgen.sh | bash -s -- --create-user deploy --sudo
 
 set -euo pipefail
 
@@ -16,6 +18,8 @@ WORDS=4
 SEPARATOR="-"
 HTPASS=""
 HTPASS_USER=""
+CREATE_USER=""
+SUDO_USER=""
 
 # === Parse args ===
 while [[ $# -gt 0 ]]; do
@@ -25,8 +29,10 @@ while [[ $# -gt 0 ]]; do
         --length)     LENGTH="$2"; shift 2 ;;
         --words)      WORDS="$2"; shift 2 ;;
         --separator)  SEPARATOR="$2"; shift 2 ;;
-        --htpass)     HTPASS=1; shift ;;
-        --user)       HTPASS_USER="$2"; shift 2 ;;
+        --htpass)      HTPASS=1; shift ;;
+        --user)        HTPASS_USER="$2"; shift 2 ;;
+        --create-user) CREATE_USER="$2"; shift 2 ;;
+        --sudo)        SUDO_USER=1; shift ;;
         --help|-h)
             cat <<'HELP'
 passgen.sh — Generador de contraseñas seguras
@@ -55,6 +61,10 @@ OPCIONES MODO TECH:
 HTPASSWD (opcional, combinable con cualquier modo):
   --htpass         Genera también la línea htpasswd (Apache apr1)
   --user NAME      Usuario para la línea htpasswd (default: example)
+
+CREAR USUARIO (opcional, requiere root):
+  --create-user NAME  Crea usuario del sistema con la contraseña generada
+  --sudo              Añade el usuario al grupo sudo (admin en sudoers)
 
 HELP
             exit 0
@@ -179,4 +189,27 @@ if [[ -n "$HTPASS" ]]; then
 
     hash=$(echo "$result" | openssl passwd -apr1 -stdin)
     echo "htpasswd: ${local_user}:${hash}"
+fi
+
+# === Crear usuario del sistema (opcional) ===
+if [[ -n "$CREATE_USER" ]]; then
+    if [[ $EUID -ne 0 ]]; then
+        echo "ERROR: --create-user requiere root (usa sudo)" >&2
+        exit 1
+    fi
+
+    if id "$CREATE_USER" &>/dev/null; then
+        echo "ERROR: El usuario '$CREATE_USER' ya existe." >&2
+        exit 1
+    fi
+
+    useradd -m -s /bin/bash "$CREATE_USER"
+    echo "$CREATE_USER:$result" | chpasswd
+
+    if [[ -n "$SUDO_USER" ]]; then
+        usermod -aG sudo "$CREATE_USER"
+        echo "Usuario creado: $CREATE_USER (con sudo)"
+    else
+        echo "Usuario creado: $CREATE_USER (sin sudo)"
+    fi
 fi
