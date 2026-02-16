@@ -8,6 +8,7 @@
 # Uso: curl -sL <url>/passgen.sh | bash -s -- --htpass --user admin
 # Uso: curl -sL <url>/passgen.sh | bash -s -- --create-user deploy
 # Uso: curl -sL <url>/passgen.sh | bash -s -- --create-user deploy --sudo
+# Uso: curl -sL <url>/passgen.sh | bash -s -- --create-user deploy --pubkey "ssh-ed25519 AAAA..."
 
 set -euo pipefail
 
@@ -20,6 +21,7 @@ HTPASS=""
 HTPASS_USER=""
 CREATE_USER=""
 SUDO_USER=""
+PUBKEY=""
 
 # === Parse args ===
 while [[ $# -gt 0 ]]; do
@@ -33,6 +35,7 @@ while [[ $# -gt 0 ]]; do
         --user)        HTPASS_USER="$2"; shift 2 ;;
         --create-user) CREATE_USER="$2"; shift 2 ;;
         --sudo)        SUDO_USER=1; shift ;;
+        --pubkey)      PUBKEY="$2"; shift 2 ;;
         --help|-h)
             cat <<'HELP'
 passgen.sh — Generador de contraseñas seguras
@@ -65,6 +68,7 @@ HTPASSWD (opcional, combinable con cualquier modo):
 CREAR USUARIO (opcional, requiere root):
   --create-user NAME  Crea usuario del sistema con la contraseña generada
   --sudo              Añade el usuario al grupo sudo (admin en sudoers)
+  --pubkey "KEY"      Añade clave pública SSH al usuario (~/.ssh/authorized_keys)
 
 HELP
             exit 0
@@ -208,8 +212,20 @@ if [[ -n "$CREATE_USER" ]]; then
 
     if [[ -n "$SUDO_USER" ]]; then
         usermod -aG sudo "$CREATE_USER"
-        echo "Usuario creado: $CREATE_USER (con sudo)"
-    else
-        echo "Usuario creado: $CREATE_USER (sin sudo)"
     fi
+
+    if [[ -n "$PUBKEY" ]]; then
+        local ssh_dir
+        ssh_dir=$(eval echo "~$CREATE_USER")/.ssh
+        mkdir -p "$ssh_dir"
+        echo "$PUBKEY" >> "$ssh_dir/authorized_keys"
+        chmod 700 "$ssh_dir"
+        chmod 600 "$ssh_dir/authorized_keys"
+        chown -R "$CREATE_USER:$CREATE_USER" "$ssh_dir"
+    fi
+
+    local flags=""
+    [[ -n "$SUDO_USER" ]] && flags="con sudo"
+    [[ -n "$PUBKEY" ]] && flags="${flags:+$flags, }con SSH key"
+    echo "Usuario creado: $CREATE_USER${flags:+ ($flags)}"
 fi
