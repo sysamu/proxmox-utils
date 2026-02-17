@@ -215,7 +215,6 @@ if [[ -n "$CREATE_USER" ]]; then
     fi
 
     if [[ -n "$PUBKEY" ]]; then
-        local ssh_dir
         ssh_dir=$(eval echo "~$CREATE_USER")/.ssh
         mkdir -p "$ssh_dir"
         echo "$PUBKEY" >> "$ssh_dir/authorized_keys"
@@ -224,7 +223,7 @@ if [[ -n "$CREATE_USER" ]]; then
         chown -R "$CREATE_USER:$CREATE_USER" "$ssh_dir"
     fi
 
-    local flags=""
+    flags=""
     [[ -n "$SUDO_USER" ]] && flags="con sudo"
     [[ -n "$PUBKEY" ]] && flags="${flags:+$flags, }con SSH key"
     echo "Usuario creado: $CREATE_USER${flags:+ ($flags)}"
