@@ -1128,6 +1128,114 @@ OTHER:
 
 ---
 
+### 8. `proxmox-vm-template.sh`
+
+**Quick install:**
+```bash
+# Run directly on your Proxmox node
+curl -sL https://raw.githubusercontent.com/sysamu/proxmox-utils/main/scripts/proxmox-vm-template.sh | sudo bash
+
+# Or with custom parameters
+curl -sL https://raw.githubusercontent.com/sysamu/proxmox-utils/main/scripts/proxmox-vm-template.sh | sudo bash -s -- --vmid 9001 --storage ceph-pool --disk 20G
+
+# Download first, review, then execute (recommended)
+wget https://raw.githubusercontent.com/sysamu/proxmox-utils/main/scripts/proxmox-vm-template.sh
+chmod +x proxmox-vm-template.sh
+sudo ./proxmox-vm-template.sh
+```
+
+**Purpose:** Create a Proxmox VM template from a Debian 13 Trixie `genericcloud` image, fully configured for cloud-init. Ready to clone with Terraform or the Proxmox UI.
+
+**Use Case:** Bootstrap a reusable base template on a Proxmox node. The template includes cloud-init support so clones get their user, SSH key, and network configured automatically on first boot — no manual installation steps required.
+
+**Key design decisions:**
+- Uses the **`genericcloud`** image (not `generic`) — already ships with `qemu-guest-agent` and `cloud-init`, so no boot + manual install needed
+- **UEFI + q35** machine with EFI disk — modern hardware profile
+- **`virtio-scsi-single` + `iothread`** — best performance for thin-provisioned storage
+- **`discard=on`** — enables TRIM/unmap for space reclaim on LVM/Ceph
+- Skips re-downloading the image if already present in `/var/tmp`
+- Validates storage pool and VM ID before starting
+
+**Usage:**
+```bash
+sudo ./proxmox-vm-template.sh [options]
+```
+
+**All options:**
+```
+--vmid     N       VM ID for the template       (default: 9000)
+--name     NAME    VM name                      (default: debian-13-trixie-template)
+--storage  POOL    Proxmox storage pool         (default: local-lvm)
+--bridge   BR      Network bridge               (default: vmbr0)
+--memory   MB      RAM in MB                    (default: 1024)
+--cores    N       vCPU count                   (default: 2)
+--disk     SIZE    Final disk size, e.g. 8G     (default: 8G)
+--url      URL     Cloud image URL              (default: Debian 13 Trixie genericcloud amd64)
+--workdir  DIR     Directory for image download (default: /var/tmp)
+--help             Show help
+```
+
+**Examples:**
+```bash
+# Defaults: VMID 9000, local-lvm, 8G disk
+sudo bash proxmox-vm-template.sh
+
+# Custom storage and disk size
+sudo bash proxmox-vm-template.sh --vmid 9001 --storage ceph-pool --disk 20G
+
+# Ubuntu 24.04 instead of Debian 13
+sudo bash proxmox-vm-template.sh \
+  --name ubuntu-24-template \
+  --url https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img
+```
+
+**What the script does:**
+
+1. Validates root, required commands (`qm`, `pvesm`, `wget`), storage pool, and VMID availability
+2. Downloads the Debian 13 genericcloud image (skips if already cached)
+3. Creates a VM with UEFI/q35/virtio-scsi-single profile
+4. Imports and attaches the disk, resizes to target size
+5. Attaches a cloud-init drive (`ide2`)
+6. Configures serial console (`serial0`) and QEMU guest agent
+7. Sets default cloud-init user (`debian`) and DHCP networking
+8. Converts the VM to a template
+9. Removes the downloaded image
+
+**Cloning with Terraform:**
+
+The template output shows a ready-to-use Terraform snippet. Example using [bpg/proxmox](https://registry.terraform.io/providers/bpg/proxmox/latest):
+
+```hcl
+resource "proxmox_virtual_environment_vm" "vm" {
+  name      = "my-vm"
+  node_name = "pve"
+  clone {
+    vm_id     = 9000
+    full      = false
+  }
+  initialization {
+    user_account {
+      username = "debian"
+      keys     = [file("~/.ssh/id_rsa.pub")]
+    }
+    ip_config {
+      ipv4 {
+        address = "dhcp"
+      }
+    }
+  }
+}
+```
+
+**Important notes:**
+- Run this script **on the Proxmox node itself**, not from a workstation
+- Requires root privileges
+- The template's default user is `debian` — override via cloud-init on each clone
+- The cloud-init `ciuser`/`sshkeys`/`ipconfig0` set in the template are just defaults; Terraform overrides them per clone
+- To update the template (new Debian release), delete the old VM and re-run the script
+
+---
+
 ## General Requirements
 
 - Root/sudo privileges

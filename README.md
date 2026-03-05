@@ -31,6 +31,7 @@ proxmox-utils/
 │   ├── nginx_installer.sh
 │   ├── sshd_hardening.sh
 │   ├── passgen.sh
+│   ├── proxmox-vm-template.sh
 │   └── README.md     # Detailed documentation for all scripts
 │
 └── terraform/        # Infrastructure as Code deployments
@@ -57,6 +58,7 @@ sudo ./SCRIPT_NAME.sh
 - **Cache Management** - ZFS ARC and system cache optimization
 - **Storage Configuration** - ZFS pool setup and management
 - **SSH Hardening** - Automated SSH security configuration with key-based authentication
+- **VM Template Builder** - Automated cloud-init ready VM template from any genericcloud image (`curl | bash` ready, supports Debian, Ubuntu, etc.)
 
 ### Security & Credentials
 - **Password Generator** - Secure password, passphrase, and token generation (`curl | bash` ready)
