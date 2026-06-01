@@ -156,12 +156,13 @@ precheck() {
     print_success "Espacio libre en /: ${free_gb}G"
 
     # Tareas activas — bloqueo estricto, no hay override
+    # "task list" sin --all devuelve solo las running; [] significa ninguna.
     local running_tasks
-    running_tasks=$(proxmox-backup-manager task list 2>/dev/null \
-        | awk 'NR>1 && NF>0' | wc -l)
+    running_tasks=$(proxmox-backup-manager task list --output-format json-pretty 2>/dev/null \
+        | python3 -c 'import json,sys; print(len(json.load(sys.stdin)))' 2>/dev/null || echo 0)
     if [[ "$running_tasks" -gt 0 ]]; then
-        print_error "Hay ${running_tasks} tarea(s) activa(s) en PBS. NO es seguro hacer el upgrade ahora."
-        print_error "Espera a que terminen o cancélalas antes de continuar."
+        print_error "Hay ${running_tasks} tarea(s) corriendo en PBS. NO es seguro hacer el upgrade ahora."
+        print_error "Espera a que terminen antes de continuar."
         print_info "Consulta el estado con: proxmox-backup-manager task list"
         exit 1
     fi
