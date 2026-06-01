@@ -502,13 +502,32 @@ post_validate() {
     print_info "Datastores:"
     proxmox-backup-manager datastore list || print_warning "No se pudieron listar datastores"
 
-    echo ""
-    print_info "Para desactivar el modo mantenimiento en los datastores:"
-    echo -e "    ${CYAN}for ds in \$(proxmox-backup-manager datastore list --output-format json | python3 -c 'import json,sys;[print(d[\"name\"]) for d in json.load(sys.stdin)]'); do${NC}"
-    echo -e "    ${CYAN}    proxmox-backup-manager datastore update \"\$ds\" --delete maintenance-mode${NC}"
-    echo -e "    ${CYAN}done${NC}"
-    echo ""
+    # Only offer to disable maintenance if both checks passed
+    if [[ "$pbs_ver" =~ ^4\. ]] && [[ "$deb_ver" =~ ^13 ]]; then
+        echo ""
+        confirm "¿Desactivar el modo mantenimiento en todos los datastores ahora?"
+        local datastores
+        datastores=$(proxmox-backup-manager datastore list --output-format json 2>/dev/null \
+            | python3 -c 'import json,sys; [print(d["name"]) for d in json.load(sys.stdin)]' \
+            2>/dev/null || true)
+        if [[ -n "$datastores" ]]; then
+            while read -r ds; do
+                [[ -z "$ds" ]] && continue
+                if proxmox-backup-manager datastore update "$ds" --delete maintenance-mode 2>/dev/null; then
+                    print_success "Datastore '$ds' → mantenimiento desactivado"
+                else
+                    print_warning "No se pudo actualizar '$ds' (quizá ya estaba sin mantenimiento)"
+                fi
+            done <<< "$datastores"
+        else
+            print_warning "No se pudieron listar datastores para desactivar mantenimiento"
+        fi
+    else
+        print_warning "Upgrade incompleto — NO se desactiva el modo mantenimiento automáticamente."
+        print_info "Resuélve los errores anteriores antes de volver a correr --post."
+    fi
 
+    echo ""
     print_info "Antes de eliminar el snapshot OVH:"
     echo "    1. Lanza un backup nuevo desde un cliente PVE."
     echo "    2. Lanza un verify completo en cada datastore."
