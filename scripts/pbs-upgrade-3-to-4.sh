@@ -285,17 +285,19 @@ detect_repo_flavor() {
     if [[ -n "$REPO_FLAVOR" ]]; then
         return
     fi
-    # Only look at active (non-commented) lines in non-backup files
-    if grep -rhs "enterprise.proxmox.com/debian/pbs" \
-           /etc/apt/sources.list \
-           /etc/apt/sources.list.d/*.list \
-           /etc/apt/sources.list.d/*.sources \
-           2>/dev/null \
-       | grep -qv '^\s*#'; then
+    # Check for an active (not disabled, not commented) enterprise PBS repo.
+    # Handles both .list format (# comments) and deb822 .sources format (Enabled: no).
+    REPO_FLAVOR="nosub"
+    for f in /etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources; do
+        [[ -e "$f" ]] || continue
+        # Skip if file contains "Enabled: no" (deb822 disabled)
+        grep -qi '^\s*Enabled\s*:\s*no' "$f" && continue
+        # Skip if the enterprise URI only appears on commented lines
+        grep -qs "enterprise.proxmox.com/debian/pbs" "$f" || continue
+        grep -v '^\s*#' "$f" | grep -qs "enterprise.proxmox.com/debian/pbs" || continue
         REPO_FLAVOR="enterprise"
-    else
-        REPO_FLAVOR="nosub"
-    fi
+        break
+    done
     print_info "Repo PBS 4 a configurar (auto-detectado): $REPO_FLAVOR"
 }
 
@@ -392,8 +394,9 @@ EOF
                           -o APT::Get::List-Cleanup="0" 2>&1 \
            | grep -q "401\|Unauthorized"; then
             print_warning "Enterprise repo devolvió 401 — sin suscripción activa."
-            print_warning "Cambiando automáticamente a no-subscription..."
-            rm -f /etc/apt/sources.list.d/pbs-enterprise.sources
+            print_warning "Desactivando enterprise y cambiando a no-subscription..."
+            # Disable like the GUI does: add "Enabled: no" to the deb822 file
+            echo "Enabled: no" >> /etc/apt/sources.list.d/pbs-enterprise.sources
             REPO_FLAVOR="nosub"
         else
             print_success "Repo PBS 4 Enterprise accesible"
