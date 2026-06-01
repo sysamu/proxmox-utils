@@ -376,12 +376,16 @@ switch_repos() {
         print_success "/etc/apt/sources.list: bookworm → trixie (backup: .bak)"
     fi
 
-    # sources.list.d/*.list (que no sean de Proxmox PBS antiguo)
-    for f in /etc/apt/sources.list.d/*.list; do
+    # sources.list.d — both .list and .sources (deb822), skip PBS and disabled files
+    for f in /etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources; do
         [[ -e "$f" ]] || continue
+        # Skip PBS repos — those are handled separately below
+        [[ "$f" == *proxmox* || "$f" == *pbs* ]] && continue
+        # Skip disabled deb822 repos
+        grep -qi '^\s*Enabled\s*:\s*no' "$f" && continue
         if grep -q bookworm "$f"; then
             sed -i.bak 's/bookworm/trixie/g' "$f"
-            print_success "$f: bookworm → trixie"
+            print_success "$f: bookworm → trixie (backup: .bak)"
         fi
     done
 
