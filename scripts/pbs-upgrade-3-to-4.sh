@@ -376,13 +376,16 @@ switch_repos() {
         print_success "/etc/apt/sources.list: bookworm → trixie (backup: .bak)"
     fi
 
-    # sources.list.d — both .list and .sources (deb822), skip PBS and disabled files
+    # sources.list.d — both .list and .sources (deb822)
+    # Skip: disabled repos, and repos that point to proxmox.com/debian/pbs
+    # (those are the PBS package repos, handled separately below).
+    # Everything else (Debian base, proxmox helper repos, etc.) gets migrated.
     for f in /etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources; do
         [[ -e "$f" ]] || continue
-        # Skip PBS repos — those are handled separately below
-        [[ "$f" == *proxmox* || "$f" == *pbs* ]] && continue
         # Skip disabled deb822 repos
         grep -qi '^\s*Enabled\s*:\s*no' "$f" && continue
+        # Skip the PBS package repo (handled separately)
+        grep -qs "proxmox.com/debian/pbs" "$f" && continue
         if grep -q bookworm "$f"; then
             sed -i.bak 's/bookworm/trixie/g' "$f"
             print_success "$f: bookworm → trixie (backup: .bak)"
