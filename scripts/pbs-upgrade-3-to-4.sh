@@ -285,7 +285,13 @@ detect_repo_flavor() {
     if [[ -n "$REPO_FLAVOR" ]]; then
         return
     fi
-    if grep -rqs "enterprise.proxmox.com/debian/pbs" /etc/apt/sources.list /etc/apt/sources.list.d/ 2>/dev/null; then
+    # Only look at active (non-commented) lines in non-backup files
+    if grep -rhs "enterprise.proxmox.com/debian/pbs" \
+           /etc/apt/sources.list \
+           /etc/apt/sources.list.d/*.list \
+           /etc/apt/sources.list.d/*.sources \
+           2>/dev/null \
+       | grep -qv '^\s*#'; then
         REPO_FLAVOR="enterprise"
     else
         REPO_FLAVOR="nosub"
@@ -379,8 +385,22 @@ Suites: trixie
 Components: pbs-enterprise
 Signed-By: /usr/share/keyrings/proxmox-archive-keyring.gpg
 EOF
-        print_success "Repo PBS 4 Enterprise añadido"
-    else
+        print_success "Repo PBS 4 Enterprise añadido — verificando acceso..."
+        # Test: if enterprise returns 401 (no active subscription), fall back to nosub
+        if apt-get update -o Dir::Etc::sourcelist="sources.list.d/pbs-enterprise.sources" \
+                          -o Dir::Etc::sourcelistd="/dev/null" \
+                          -o APT::Get::List-Cleanup="0" 2>&1 \
+           | grep -q "401\|Unauthorized"; then
+            print_warning "Enterprise repo devolvió 401 — sin suscripción activa."
+            print_warning "Cambiando automáticamente a no-subscription..."
+            rm -f /etc/apt/sources.list.d/pbs-enterprise.sources
+            REPO_FLAVOR="nosub"
+        else
+            print_success "Repo PBS 4 Enterprise accesible"
+        fi
+    fi
+
+    if [[ "$REPO_FLAVOR" == "nosub" ]]; then
         cat > /etc/apt/sources.list.d/pbs-no-subscription.sources <<'EOF'
 Types: deb
 URIs: http://download.proxmox.com/debian/pbs
