@@ -261,10 +261,27 @@ backup_config() {
     confirm "¿Ya descargaste el backup a un lugar seguro?"
 }
 
+# ===== SANITIZE PBS REPOS (clean up leftovers from failed attempts) =====
+sanitize_pbs_repos() {
+    # If a previous run left a PBS 4 (trixie) repo active, disable it now
+    # so apt update on bookworm doesn't fail with 401 or suite mismatch.
+    for f in /etc/apt/sources.list.d/*.sources /etc/apt/sources.list.d/*.list; do
+        [[ -e "$f" ]] || continue
+        # Already disabled — skip
+        grep -qi '^\s*Enabled\s*:\s*no' "$f" && continue
+        # Contains a proxmox PBS repo pointing at trixie
+        if grep -qs "proxmox.com/debian/pbs" "$f" && grep -qs "trixie" "$f"; then
+            print_warning "Resto de intento anterior detectado: $f — desactivando"
+            echo "Enabled: no" >> "$f"
+        fi
+    done
+}
+
 # ===== UPDATE TO LATEST PBS 3 =====
 update_to_latest_pbs3() {
     print_step "Paso B — Actualizar a la última PBS 3.4.x"
 
+    sanitize_pbs_repos
     apt update
     DEBIAN_FRONTEND=noninteractive apt -y dist-upgrade
 
