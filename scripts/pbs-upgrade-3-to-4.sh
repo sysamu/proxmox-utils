@@ -392,12 +392,23 @@ switch_repos() {
         fi
     done
 
-    # Eliminar repos PBS 3 antiguos
+    # Desactivar repos PBS 3 antiguos (cualquier nombre conocido para el repo PBS de Debian)
     for old in pbs-enterprise.list pbs-no-subscription.list pbs-install-repo.list \
-               pbs-enterprise.sources pbs-no-subscription.sources; do
+               pbs-enterprise.sources pbs-no-subscription.sources proxmox-pbs.sources; do
         if [[ -f "/etc/apt/sources.list.d/$old" ]]; then
             mv "/etc/apt/sources.list.d/$old" "/etc/apt/sources.list.d/${old}.pbs3.bak"
             print_success "Repo PBS 3 desactivado: $old"
+        fi
+    done
+    # Also disable any remaining active repo pointing to proxmox.com/debian/pbs
+    # that may have a non-standard filename
+    for f in /etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources; do
+        [[ -e "$f" ]] || continue
+        [[ "$f" == *.bak ]] && continue
+        grep -qi '^\s*Enabled\s*:\s*no' "$f" && continue
+        if grep -qs "proxmox.com/debian/pbs" "$f"; then
+            echo "Enabled: no" >> "$f"
+            print_success "Repo PBS 3 desactivado (nombre no estándar): $f"
         fi
     done
 
