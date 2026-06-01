@@ -101,8 +101,12 @@ in_tmux_or_screen() {
 }
 
 get_pbs_version() {
-    proxmox-backup-manager versions 2>/dev/null \
-        | awk '/proxmox-backup-server/ {print $3; exit}'
+    # "proxmox-backup-manager version" output (PBS 3.x):
+    #   proxmox-backup-server 3.4.8-3 running version: 3.4.6
+    # $2 is the installed package version; strip the revision suffix (-3).
+    proxmox-backup-manager version 2>/dev/null \
+        | awk '/proxmox-backup-server/ {print $2; exit}' \
+        | sed 's/-.*//'
 }
 
 # ===== PRECHECK =====
@@ -151,17 +155,19 @@ precheck() {
     fi
     print_success "Espacio libre en /: ${free_gb}G"
 
-    # Tareas activas
+    # Tareas activas — bloqueo estricto, no hay override
     if proxmox-backup-manager task list --all 2>/dev/null \
            | awk 'NR>1 && $0 !~ /OK|ERROR|stopped/ {found=1} END{exit found?0:1}'; then
-        print_warning "Hay tareas potencialmente activas en PBS."
-        print_warning "Revisa con: proxmox-backup-manager task list --all"
-        if [[ "$MODE" != "post" ]]; then
-            confirm "¿Estás seguro de que ninguna tarea está corriendo?"
-        fi
-    else
-        print_success "No hay tareas activas detectadas"
+        print_error "Hay tareas activas en PBS. NO es seguro hacer el upgrade ahora."
+        print_error "Espera a que terminen o cancélalas antes de continuar."
+        echo ""
+        proxmox-backup-manager task list --all 2>/dev/null | head -20 | sed 's/^/    /'
+        echo ""
+        print_info "Consulta el estado completo con:"
+        echo -e "    ${CYAN}proxmox-backup-manager task list --all${NC}"
+        exit 1
     fi
+    print_success "No hay tareas activas"
 
     # Snapshot recordatorio
     if [[ "$MODE" != "post" ]]; then
