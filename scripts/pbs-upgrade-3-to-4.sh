@@ -217,6 +217,9 @@ backup_config() {
     tar czf "$tarball" -C /etc proxmox-backup
     cp /etc/apt/sources.list "$backup_dir/sources.list.bookworm.${stamp}.bak" 2>/dev/null || true
     cp -r /etc/apt/sources.list.d "$backup_dir/sources.list.d.bookworm.${stamp}.bak" 2>/dev/null || true
+    cp /etc/fstab "$backup_dir/fstab.${stamp}.bak"
+    cp /etc/network/interfaces "$backup_dir/interfaces.${stamp}.bak" 2>/dev/null || true
+    cp /etc/hosts "$backup_dir/hosts.${stamp}.bak" 2>/dev/null || true
 
     local tar_size
     tar_size="$(du -h "$tarball" | cut -f1)"
