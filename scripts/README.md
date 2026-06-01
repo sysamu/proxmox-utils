@@ -231,6 +231,144 @@ scp root@YOUR_PROXMOX_IP:/root/proxmox_etc_backup_*.tar.gz .
 
 ---
 
+### ⬆️ `pbs-upgrade-3-to-4.sh`
+
+**Quick install:**
+```bash
+# Download and review (recommended)
+wget https://raw.githubusercontent.com/sysamu/proxmox-utils/main/scripts/pbs-upgrade-3-to-4.sh
+chmod +x pbs-upgrade-3-to-4.sh
+
+# Read the full procedure first
+wget https://raw.githubusercontent.com/sysamu/proxmox-utils/main/scripts/PBS_3_to_4_upgrade.md
+
+# Run inside tmux/screen
+tmux new -s pbs-upgrade
+sudo ./pbs-upgrade-3-to-4.sh
+```
+
+**Purpose:** Automate the safe upgrade of Proxmox Backup Server from 3.4.x to 4.x (Debian 12 Bookworm → Debian 13 Trixie).
+
+**Use Case:** PBS instances installed on top of vanilla Debian 12 (no PBS ISO). Tested target scenario: PBS 3.4.6 on OVH Public Cloud B3-16 → PBS 4.2 on Debian 13 Trixie. Also valid for any Debian-based PBS install.
+
+**Companion documentation:** [`PBS_3_to_4_upgrade.md`](PBS_3_to_4_upgrade.md) — full procedure in markdown, ready to upload to Confluence. Covers manual steps, rollback plan, OVH-specific notes, and post-upgrade validation.
+
+**Features:**
+- 🎨 Colored output with clear step separation (matches repo style)
+- 🛑 Pre-flight checks: root, tmux/screen, free space, active tasks, current PBS version
+- 💾 Auto-backup of `/etc/proxmox-backup` and APT sources before any change
+- 🔍 Runs the official `pbs3to4 --full` audit tool
+- 🔒 Optional maintenance mode (read-only) on all datastores during upgrade
+- 🔄 Auto-detects no-subscription vs enterprise repo (override with `--repo`)
+- 📋 Replaces `bookworm` → `trixie` in all sources files (with `.bak` backups)
+- ⚠️ Interactive confirmations on every destructive step
+- ✅ Separate `--post` mode for post-reboot validation
+- 🧪 Separate `--precheck` mode to run only the pre-flight checks (dry-run-ish)
+
+**Usage:**
+```bash
+# Full interactive upgrade (recommended)
+sudo ./pbs-upgrade-3-to-4.sh
+
+# Only run pre-flight checks (safe, makes no changes)
+sudo ./pbs-upgrade-3-to-4.sh --precheck
+
+# Only create the config backup tarball and print SFTP download instructions
+sudo ./pbs-upgrade-3-to-4.sh --backup-config
+
+# Force no-subscription repo (default auto-detect)
+sudo ./pbs-upgrade-3-to-4.sh --repo nosub
+
+# Force enterprise repo
+sudo ./pbs-upgrade-3-to-4.sh --repo enterprise
+
+# After manual reboot, run validation
+sudo ./pbs-upgrade-3-to-4.sh --post
+
+# Skip interactive confirmations (advanced — only after a precheck dry-run)
+sudo ./pbs-upgrade-3-to-4.sh --yes
+```
+
+**Flags:**
+- `--precheck` — Run only the pre-flight checks and exit
+- `--post` — Run only the post-reboot validation
+- `--backup-config` — Only create the backup of `/etc/proxmox-backup` + APT sources to `/root/pbs-upgrade-backup/`, show SFTP/SCP download instructions, and exit. Useful to grab a config snapshot at any time without starting the upgrade
+- `--repo nosub|enterprise` — Choose PBS 4 repository (auto-detected if omitted)
+- `--yes` / `-y` — Skip interactive confirmations
+- `-h`, `--help` — Show help
+
+**What the script does (phases B–F of the procedure):**
+
+1. **Pre-flight checks** — root, tmux/screen, free disk, active PBS tasks, snapshot confirmation
+2. **Backup** — tarball of `/etc/proxmox-backup` + APT sources to `/root/pbs-upgrade-backup/`
+3. **Update to latest PBS 3.4.x** — `apt dist-upgrade` within the 3.x branch
+4. **`pbs3to4 --full`** — official Proxmox audit tool
+5. **Maintenance mode** — sets all datastores to `read-only`
+6. **Switch repos** — Debian Bookworm → Trixie, PBS 3 repos → PBS 4
+7. **`apt dist-upgrade`** — major upgrade (interactive on conffile prompts)
+
+**What the script does NOT do (must be done manually):**
+
+| Step | Why manual |
+|------|------------|
+| OVH snapshot of the instance | Not scriptable from inside the VM |
+| Open a `tmux`/`screen` session | Must wrap the script, can't be done from inside |
+| Final `systemctl reboot` | Explicit human confirmation reduces risk |
+| Disable maintenance mode after success | Triggered manually once you've validated everything |
+| Delete the OVH snapshot | Only after at least one successful backup + verify |
+
+**Typical full flow:**
+
+```bash
+# 1. Create snapshot in OVH Public Cloud panel
+#    (Public Cloud → Instances → "…" → Create snapshot)
+
+# 2. SSH in and start a tmux session
+ssh root@your-pbs
+tmux new -s pbs-upgrade
+
+# 3. Download script + docs
+wget https://raw.githubusercontent.com/sysamu/proxmox-utils/main/scripts/pbs-upgrade-3-to-4.sh
+wget https://raw.githubusercontent.com/sysamu/proxmox-utils/main/scripts/PBS_3_to_4_upgrade.md
+chmod +x pbs-upgrade-3-to-4.sh
+
+# 4. Run precheck first
+sudo ./pbs-upgrade-3-to-4.sh --precheck
+
+# 5. Run the upgrade
+sudo ./pbs-upgrade-3-to-4.sh
+
+# 6. When the script says "ready to reboot":
+systemctl reboot
+
+# 7. After reboot, reconnect and validate
+ssh root@your-pbs
+sudo ./pbs-upgrade-3-to-4.sh --post
+
+# 8. Manual: disable maintenance mode, run a test backup + verify,
+#    then delete the OVH snapshot.
+```
+
+**Important notes:**
+- ⚠️ **Read `PBS_3_to_4_upgrade.md` end-to-end before running**
+- ⚠️ **Snapshot the VM in the OVH panel first** — there is no rollback otherwise
+- ⚠️ **Run inside `tmux` or `screen`** — protects against SSH drops mid-upgrade
+- ⚠️ **OVH cloud snapshots only cover the root disk** — Block Storage volumes (where datastores typically live) are independent
+- 🔐 Requires root
+- 📋 The script does not skip the official `pbs3to4` tool — if it reports failures you must resolve them before continuing
+- 🌐 OVH B3-16 (virtio NIC + virtio block) has no known incompatibility with kernel 6.14
+
+**When to use:**
+- ⬆️ Upgrading PBS 3.x to PBS 4.x on a Debian-on-OVH (or any cloud) install
+- 🔁 Standardizing the procedure across multiple PBS nodes
+
+**When NOT to use:**
+- ❌ PBS installed from the official ISO with non-standard partitioning — review the official guide first
+- ❌ PBS running on hardware older than ~10 years (kernel 6.14 compatibility risk)
+- ❌ Without a fresh snapshot/backup of the VM
+
+---
+
 ### 1. `zfs-pool-r0.sh`
 
 **Quick install:**
