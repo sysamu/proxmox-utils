@@ -160,11 +160,7 @@ precheck() {
            | awk 'NR>1 && $0 !~ /OK|ERROR|stopped/ {found=1} END{exit found?0:1}'; then
         print_error "Hay tareas activas en PBS. NO es seguro hacer el upgrade ahora."
         print_error "Espera a que terminen o cancélalas antes de continuar."
-        echo ""
-        proxmox-backup-manager task list --all 2>/dev/null | head -20 | sed 's/^/    /'
-        echo ""
-        print_info "Consulta el estado completo con:"
-        echo -e "    ${CYAN}proxmox-backup-manager task list --all${NC}"
+        print_info "Consulta el estado con: proxmox-backup-manager task list --all"
         exit 1
     fi
     print_success "No hay tareas activas"
